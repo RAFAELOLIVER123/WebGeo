@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <!-- =========================================================
+   [A] META & TÍTULO
+   --------------------------------------------------------- -->
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SGC MPSBBB – Agro Map (compacto e comentado)</title>
+
+  <!-- =========================================================
+   [B] CSS/JS DE TERCEIROS (Leaflet, Plugins, Ícones, etc.)
+   - Carregamento na ordem correta para evitar conflitos.
+   --------------------------------------------------------- -->
+  <!-- Leaflet (núcleo) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster (aglomeração de pontos) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- Leaflet Draw (desenho/edição de formas) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <!-- Decorator (setas em linhas) -->
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
+
+  <!-- toGeoJSON (converter KML/KMZ/XML -> GeoJSON) -->
+  <script src="https://unpkg.com/togeojson@0.16.0"></script>
+
+  <!-- Turf.js (medidas geoespaciais) -->
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <!-- pdf.js (renderizar 1ª página do PDF como imagem) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.min.js"></script>
+
+  <!-- Font Awesome (ícones) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+
+  <!-- =========================================================
+   [C] ESTILOS (UI): Tema, Painéis, Caixa de Coordenadas, Régua, etc.
+   - Inclui versões COMPACTAS do coordBox e rulerBox
+   --------------------------------------------------------- -->
+  <style>
+    /* ---------- C.1 Variáveis de tema ---------- */
+    :root{
+      --brand-blue:#2563eb;         /* Primária */
+      --brand-blue-dark:#1d4ed8;    /* Primária (escura) */
+      --bg:#f4f7fb;                 /* Fundo da app */
+      --ink:#0f172a;                /* Texto escuro */
+      --muted:#6b7280;              /* Texto secundário */
+      --panel-grad:linear-gradient(180deg,#fff 0%,#fbfdff 100%);
+      --card-border:#e8eef7;
+      --ctrl-border:#e5e7eb;
+    }
+
+    /* ---------- C.2 Layout base ---------- */
+    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+    #map{position:absolute;inset:0}
+    .hidden{display:none!important}
+
+    /* ---------- C.3 Painel esquerdo (controles) ---------- */
+    #controls{
+      position:absolute;top:10px;left:10px;z-index:1000;width:250px;
+      background:var(--panel-grad);border:1px solid #eef2f7;border-radius:14px;padding:12px;
+      box-shadow:0 12px 28px rgba(16,24,40,.14),0 2px 6px rgba(16,24,40,.06);font-size:12px
+    }
+    .section{margin-bottom:12px}
+    .section-title{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--ink);margin:6px 0}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    label.small{font-size:11px;color:#64748b;display:block;margin:4px 0}
+
+    /* Botões “padrão” */
+    .btn{
+      display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:none;border-radius:10px;
+      background:var(--brand-blue);color:#fff;cursor:pointer;transition:.2s;
+      box-shadow:0 4px 14px rgba(37,99,235,.25);font-size:12px
+    }
+    .btn:hover{filter:brightness(.96)}
+    .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--ctrl-border);box-shadow:none}
+    .btn-danger{background:#ef4444}
+    .btn-save{background:#16a34a}
+
+    /* Entradas padrão */
+    select,textarea,input[type="text"],input[type="number"],input[type="range"],input[type="color"]{
+      width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--ctrl-border);border-radius:10px;background:#fff;font-size:12px
+    }
+    textarea{resize:vertical}
+
+    /* Botão “hambúrguer” (mostrar/ocultar painel) */
+    #toggleButton{
+      position:absolute;top:12px;left:272px;z-index:1001;padding:6px 8px;border:none;border-radius:10px;
+      background:#0f172a;color:#fff;cursor:pointer;font-size:12px
+    }
+
+    /* ---------- C.4 Toolbar flutuante (seleção/edição) ---------- */
+    #shapeToolbar{
+      position:absolute;right:12px;bottom:12px;z-index:1000;width:280px;display:none;cursor:default;
+      background:#ffffffd8;backdrop-filter:blur(6px);border:1px solid var(--card-border);border-radius:14px;
+      box-shadow:0 12px 28px rgba(16,24,40,.14),0 2px 6px rgba(16,24,40,.06)
+    }
+    #shapeToolbar.dragging{opacity:.96}
+    #dragHandle{
+      position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;
+      padding:12px;color:#fff;border-top-left-radius:14px;border-top-right-radius:14px;user-select:none;cursor:move;
+      background:linear-gradient(90deg,var(--brand-blue),var(--brand-blue-dark))
+    }
+    #dragHandle .toolbar-title{font-weight:900;font-size:13px;letter-spacing:.2px}
+    #btnCloseToolbar{background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:10px;padding:4px 8px;cursor:pointer}
+    .toolbar-body{padding:12px;max-height:82vh;overflow:auto}
+    .toolbar-body .row{margin:6px 0}
+
+    /* Loading central */
+    #loadingMessage{
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2000;
+      background:rgba(2,6,23,.82);color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;display:none;
+      box-shadow:0 10px 24px rgba(0,0,0,.35)
+    }
+
+    /* Etiquetas / Emojis (pinos) */
+    .label-marker .bubble{position:relative;left:50%;transform:translate(-50%,-100%);display:inline-block;border-radius:8px;white-space:nowrap;line-height:1.15}
+    .emoji-pin{background:transparent!important;border:none!important}
+    .emoji-pin .emoji{position:relative;left:50%;transform:translate(-50%,-100%);display:inline-block;line-height:1}
+
+    /* Extent PDF (mini painel na toolbar) */
+    #extentInfo{margin-top:8px;padding-top:8px;border-top:1px dashed var(--ctrl-border);display:none;font-size:12px;color:#111827}
+    #extentInfo .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+    #extentInfo .tag{font-size:11px;color:var(--muted);align-self:center}
+    .adjust-mode #map{cursor:move!important}
+
+    /* Editor inline de etiqueta */
+    .label-editor{
+      position:absolute;z-index:2001;padding:6px;background:#0f172a;color:#fff;border:1px solid var(--brand-blue);
+      border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.35)
+    }
+    .label-editor input{width:240px;background:transparent;border:0;outline:none;color:#fff;font:13px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+
+    /* ---------- C.5 Caixa de Coordenadas (COMPACTA) ---------- */
+    .leaflet-control-coordbox{
+      background: rgba(10, 18, 33, .78);           /* vidro escuro */
+      color: #e5e7eb;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08);
+    }
+    #coordBox{
+      padding: 8px !important;
+      width: 280px !important;                     /* menor que antes */
+      transition: transform .15s ease, opacity .15s ease;
+      opacity: .95;
+    }
+    #coordBox .coord-row{ gap: 6px !important; }
+    #coordBox .coord-small{ color:#cbd5e1 !important; }
+    #coordBox .coord-btn{
+      padding: 6px 8px !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      background: rgba(255,255,255,.06) !important;
+      color: #e5e7eb !important;
+    }
+    #coordMain{ font-weight: 800; font-size: 12.5px; }
+    #coordZoom{ font-weight: 700; }
+    #coordState{ margin-left: 4px; }
+
+    @media (hover:hover){
+      #coordBox:not(:hover){ opacity:.88; transform: scale(.98); }
+    }
+
+    /* ---------- C.6 Régua (COMPACTA) ---------- */
+    .leaflet-control-ruler{
+      background: rgba(10, 18, 33, .78);
+      color: #e5e7eb;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08);
+    }
+    #rulerBox{
+      display:flex; align-items:center; gap:8px; padding:8px;
+      position:absolute; right: 8px; bottom: 80px; /* mais colado à borda e acima do rodapé */
+    }
+    #rulerBtn, #rulerClear{
+      border-radius: 10px;
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: #e5e7eb;
+    }
+    #rulerBtn i, #rulerClear i{ margin-right: 6px; }
+    #rulerBtn.active{
+      background: linear-gradient(90deg,#1d4ed8,#2563eb);
+      border-color: transparent;
+      color:#fff;
+      box-shadow: 0 4px 14px rgba(37,99,235,.35);
+    }
+    #rulerValue{
+      font-weight: 900;
+      font-variant-numeric: tabular-nums; /* números alinhados */
+      padding: 4px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.14);
+    }
+    @media (max-width: 640px){
+      #coordBox{ width: 250px !important; }
+      #rulerBox{ right: 6px; bottom: 70px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- =========================================================
+   [D] MAPA & HUD GLOBAL
+   - Elementos visuais que ficam por cima do mapa (loading)
+   --------------------------------------------------------- -->
+  <div id="map"></div>
+  <div id="loadingMessage">Carregando mapa…</div>
+
+  <!-- =========================================================
+   [E] PAINEL ESQUERDO (CONTROLES)
+   - Buscar, Base, PDF, KML, Desenho
+   --------------------------------------------------------- -->
+  <aside id="controls" aria-label="Painel de controles">
+    <!-- E.1 Buscar -->
+    <section class="section" id="sec-search">
+      <div class="section-title"><i class="fa-solid fa-magnifying-glass-location"></i> Buscar</div>
+      <div class="row" style="gap:6px">
+        <input id="searchBox" class="coord-input" placeholder="Endereço ou lat,lng (ex.: -5.35758,-49.130495)"/>
+        <button id="searchBtn" class="btn">Buscar</button>
+        <button id="gpsBtn" class="btn btn-ghost" title="Minha localização"><i class="fa-solid fa-location-crosshairs"></i></button>
+      </div>
+      <div id="searchResults" class="coord-small" style="margin-top:6px"></div>
+    </section>
+
+    <!-- E.2 Base -->
+    <section class="section" id="sec-base">
+      <div class="section-title"><i class="fa-solid fa-layer-group"></i> Base</div>
+      <label class="small">Mapa base</label>
+      <select id="baseSelect">
+        <option value="osm">OpenStreetMap</option>
+        <option value="gStreets">Google Streets</option>
+        <option value="gHybrid">Google Hybrid</option>
+        <option value="esriSat">ESRI Satélite</option>
+        <option value="osmHOT">OSM Humanitarian</option>
+        <option value="openTopo">OpenTopoMap</option>
+        <option value="cartoLight">Carto Light</option>
+        <option value="cartoDark">Carto Dark</option>
+        <option value="cartoVoyager">Carto Voyager</option>
+        <option value="esriTopo">ESRI Topográfico</option>
+        <option value="esriStreets">ESRI Streets</option>
+        <option value="esriTerrain">ESRI Terrain</option>
+        <option value="esriHillshade">ESRI Hillshade (relevo)</option>
+        <option value="esriImageryClarity">ESRI Satélite (Clarity)</option>
+      </select>
+      <label class="small"><input type="checkbox" id="chkLabels" checked/> Rótulos (apenas satélite)</label>
+    </section>
+
+    <!-- E.3 PDF (cartas MPS) -->
+    <section class="section" id="sec-pdf">
+      <div class="section-title"><i class="fa-solid fa-file-pdf"></i> Cartas (PDF)</div>
+      <div class="row" style="gap:8px;">
+        <label class="btn btn-ghost" style="flex:1">
+          <i class="fas fa-file-pdf"></i> Carregar MPS
+          <input type="file" id="pdfInput" accept=".pdf" style="display:none" multiple/>
+        </label>
+      </div>
+      <div id="pdfControls" style="margin-top:6px;"></div>
+    </section>
+
+    <!-- E.4 KML -->
+    <section class="section" id="sec-kml">
+      <div class="section-title"><i class="fa-solid fa-file-import"></i> KML</div>
+      <div class="row">
+        <label class="btn btn-ghost" style="flex:1">
+          <i class="fas fa-file-alt"></i> Carregar
+          <input type="file" id="kmlInput" accept=".kml,.kmz" multiple style="display:none"/>
+        </label>
+        <button class="btn btn-danger" id="clearKML" title="Limpar"><i class="fas fa-trash-alt"></i></button>
+      </div>
+    </section>
+
+    <!-- E.5 Desenho / GeoJSON -->
+    <section class="section" id="sec-draw">
+      <div class="section-title"><i class="fa-solid fa-draw-polygon"></i> Formas</div>
+      <div class="row">
+        <button class="btn btn-ghost" id="btnPoly"   title="Polígono"><i class="fa-solid fa-draw-polygon"></i></button>
+        <button class="btn btn-ghost" id="btnRect"   title="Retângulo"><i class="fa-regular fa-square"></i></button>
+        <button class="btn btn-ghost" id="btnLine"   title="Linha"><i class="fa-solid fa-slash"></i></button>
+        <button class="btn btn-ghost" id="btnCircle" title="Círculo"><i class="fa-regular fa-circle"></i></button>
+        <button class="btn btn-ghost" id="btnMarker" title="Ponto"><i class="fa-solid fa-location-dot"></i></button>
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <label class="btn btn-ghost" style="flex:1">
+          <i class="fas fa-file-upload"></i> Importar GeoJSON
+          <input type="file" id="geojsonInput" accept=".geojson,.json" style="display:none"/>
+        </label>
+        <button id="exportGeoJSON" class="btn" style="flex:1"><i class="fas fa-download"></i> Exportar</button>
+      </div>
+    </section>
+  </aside>
+
+  <!-- Botão para recolher/mostrar o painel esquerdo -->
+  <button id="toggleButton" title="Mostrar/ocultar painel"><i class="fas fa-sliders-h"></i></button>
+
+  <!-- =========================================================
+   [F] HUD INFERIOR DIREITO: COORDENADAS (compacto)
+   --------------------------------------------------------- -->
+  <div class="leaflet-bottom leaflet-right">
+    <div id="coordBox" class="leaflet-control leaflet-control-coordbox" style="margin:10px;">
+      <div class="coord-row" style="margin-bottom:4px">
+        <button id="lockBtn" class="coord-btn" title="Fixar/Desfixar cruz">
+          <i class="fa-solid fa-thumbtack"></i>
+        </button>
+
+        <div class="grow">
+          <div id="coordMain">—</div>
+          <div class="coord-small">
+            Zoom: <span id="coordZoom">—</span>
+            <span id="coordState"></span>
+          </div>
+        </div>
+
+        <button id="copyBtn" class="coord-btn" title='Copiar "lat,lng"'>
+          <i class="fa-solid fa-copy"></i>
+        </button>
+
+        <button id="openToolbarBtn" class="coord-btn" title="Abrir Edição e Seleção">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+   [G] HUD INFERIOR DIREITO: RÉGUA (compacta)
+   --------------------------------------------------------- -->
+  <div class="leaflet-bottom leaflet-right">
+    <div id="rulerBox" class="leaflet-control leaflet-control-ruler">
+      <button id="rulerBtn" class="ruler-btn" title="Medir distâncias">
+        <i class="fa-solid fa-ruler"></i> Régua
+      </button>
+
+      <div class="ruler-value" id="rulerValue">0 m</div>
+
+      <button id="rulerClear" class="ruler-btn" title="Limpar medição">
+        <i class="fa-solid fa-eraser"></i> Limpar
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+   [H] TOOLBAR FLUTUANTE (Edição/Seleção de formas, rótulos, etc.)
+   --------------------------------------------------------- -->
+  <div id="shapeToolbar" aria-live="polite">
+    <div id="dragHandle">
+      <div class="toolbar-title">Edição e Seleção</div>
+      <button id="btnCloseToolbar" title="Fechar">✖</button>
+    </div>
+    <div class="toolbar-body">
+      <!-- H.1 Ações -->
+      <div class="row">
+        <button class="btn" id="btnEdit" title="Editar"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-danger" id="btnDelete" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+        <button class="btn btn-save" id="btnSaveEdits" title="Salvar edição"><i class="fa-solid fa-floppy-disk"></i></button>
+      </div>
+
+      <!-- H.2 Estilo da forma -->
+      <label class="small">Cor da borda</label>
+      <input type="color" id="strokeColor" value="#1f2937"/>
+
+      <label class="small">Cor de preenchimento</label>
+      <input type="color" id="fillColor" value="#60a5fa"/>
+
+      <label class="small">Espessura</label>
+      <input type="range" id="strokeWeight" min="1" max="8" value="2"/>
+
+      <label class="small">Opacidade do preenchimento</label>
+      <input type="range" id="fillOpacity" min="0" max="1" step="0.05" value="0.25"/>
+
+      <!-- H.3 Etiqueta -->
+      <label class="small">Etiqueta (uma linha)</label>
+      <textarea id="labelText" rows="2" placeholder="Talhão / Safra / Obs."></textarea>
+
+      <div class="row">
+        <div style="flex:1">
+          <label class="small">Tamanho</label>
+          <input type="range" id="labelSize" min="10" max="28" value="12"/>
+        </div>
+        <div style="width:86px">
+          <label class="small">Cor</label>
+          <input type="color" id="labelColor" value="#111827"/>
+        </div>
+      </div>
+
+      <label class="small">Fonte</label>
+      <select id="labelFont">
+        <option value="system-ui,-apple-system,Segoe UI,Roboto,Ubuntu">Padrão (sistema)</option>
+        <option value="Arial, Helvetica, sans-serif">Arial</option>
+        <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+        <option value="'Roboto', 'Helvetica Neue', sans-serif">Roboto</option>
+        <option value="Georgia, 'Times New Roman', serif">Serif</option>
+        <option value="'Courier New', Courier, monospace">Monospace</option>
+      </select>
+
+      <div class="row" style="align-items:center">
+        <label class="small" style="margin:0;display:flex;gap:6px;align-items:center">
+          <input type="checkbox" id="labelNoBg"/> Sem fundo
+        </label>
+        <div style="margin-left:auto;width:86px">
+          <label class="small">Fundo</label>
+          <input type="color" id="labelBgColor" value="#ffffff"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btnApplyLabel" title="Criar/atualizar etiqueta"><i class="fa-solid fa-tag"></i> Aplicar/Atualizar</button>
+        <button class="btn btn-ghost" id="btnAddFreeLabel" title="Criar etiqueta sem selecionar"><i class="fa-regular fa-square-plus"></i> Etiqueta livre</button>
+      </div>
+
+      <!-- H.4 Ícones (pontos com emojis) -->
+      <label class="small">Ícone para ponto</label>
+      <select id="markerIcon">
+        <option value="pin">📍 Pino</option><option value="tractor">🚜 Trator</option>
+        <option value="fazenda">🏡 Fazenda</option><option value="sementes">🌱 Sementes</option>
+        <option value="colheita">🌾 Colheita</option><option value="insumo">🧪 Insumo</option>
+        <option value="pulverizacao">🛩️ Pulverização</option><option value="praga">🐛 Praga</option>
+        <option value="besouro">🪲 Besouro</option><option value="gafanhoto">🦗 Gafanhoto</option>
+        <option value="fogo">🔥 Fogo</option><option value="abrigo">⛺ Abrigo</option>
+        <option value="agua">💧 Água</option><option value="alerta">⚠️ Alerta</option>
+        <option value="posto">🏣 Posto</option><option value="hospital">🏥 Saúde</option>
+        <option value="galpao">🏚️ Galpão</option><option value="arvore">🌳 Árvore</option>
+        <option value="pedra">🪨 Rocha</option>
+      </select>
+      <div class="row">
+        <button class="btn" id="btnAddPoint" title="Adicionar ponto"><i class="fa-solid fa-location-dot"></i> Adicionar ponto</button>
+        <button class="btn btn-ghost" id="btnApplyIcon" title="Aplicar no ponto selecionado"><i class="fa-solid fa-wand-magic-sparkles"></i> Aplicar no ponto</button>
+      </div>
+
+      <!-- H.5 Extent PDF (aparece só se houver PDF carregado) -->
+      <div id="extentInfo">
+        <div class="section-title" style="margin-top:2px;"><i class="fa-regular fa-compass"></i> Extent do mapa</div>
+        <div class="row" style="margin-bottom:6px;">
+          <select id="pdfSelect" style="flex:1" title="Carta ativa"></select>
+          <label class="small" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="lockPdf"/> Travar
+          </label>
+        </div>
+        <div class="grid">
+          <div class="tag">Oeste (Lon mín)</div><input id="extW"/>
+          <div class="tag">Sul (Lat mín)</div><input id="extS"/>
+          <div class="tag">Leste (Lon máx)</div><input id="extE"/>
+          <div class="tag">Norte (Lat máx)</div><input id="extN"/>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn btn-ghost" id="btnAdjustPdf" title="Arrastar carta"><i class="fa-solid fa-arrows-up-down-left-right"></i> Ajustar (arrastar)</button>
+          <button class="btn" id="btnApplyPdf" title="Aplicar bounds"><i class="fa-solid fa-check"></i> Aplicar</button>
+          <button class="btn btn-danger" id="btnCancelAdjust" title="Cancelar ajuste"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+   [I] SCRIPT PRINCIPAL (MÓDULOS)
+   - Cada módulo tem comentário de “cabeçalho” e funções internas
+   --------------------------------------------------------- -->
+  <script>
+  (()=>{ 'use strict';
+
+    /* =========================================================
+     [I.1] UTILIDADES & ESTADO GLOBAL
+     - E: estado (mapa, camadas, etc.)
+     - UI: referências de elementos do DOM
+     - CONST: constantes
+    ========================================================*/
+    const el = (id) => document.getElementById(id);
+
+    const E = {
+      map: null, drawn: null, editSession: null,
+      toolbar: el('shapeToolbar'),
+      pdfLayers: {}, activePdf: null, lastPdfBounds: null,
+      kmlLayer: null, kmlClusters: null, routeLines: [], decorators: [], startMk: [], endMk: [],
+      measure: { on:false, line:null, points:[], layer:L.layerGroup(), hasTemp:false },
+      coord: { locked:false, fixed:null, cross:null }
+    };
+
+    const UI = {
+      baseSelect: el('baseSelect'), chkLabels: el('chkLabels'),
+      togglePanel: el('toggleButton'),
+      // busca
+      searchBox: el('searchBox'), searchBtn: el('searchBtn'), gpsBtn: el('gpsBtn'), searchResults: el('searchResults'),
+      // pdf
+      pdfInput: el('pdfInput'), pdfControls: el('pdfControls'),
+      pdfSelect: el('pdfSelect'), extW: el('extW'), extS: el('extS'), extE: el('extE'), extN: el('extN'),
+      lockPdf: el('lockPdf'), btnAdjustPdf: el('btnAdjustPdf'), btnApplyPdf: el('btnApplyPdf'), btnCancelAdjust: el('btnCancelAdjust'),
+      // kml
+      kmlInput: el('kmlInput'), clearKML: el('clearKML'),
+      // draw
+      btnPoly: el('btnPoly'), btnRect: el('btnRect'), btnLine: el('btnLine'), btnCircle: el('btnCircle'), btnMarker: el('btnMarker'),
+      // estilos
+      strokeColor: el('strokeColor'), fillColor: el('fillColor'), strokeWeight: el('strokeWeight'), fillOpacity: el('fillOpacity'),
+      // labels
+      labelText: el('labelText'), labelSize: el('labelSize'), labelColor: el('labelColor'), labelFont: el('labelFont'), labelNoBg: el('labelNoBg'), labelBg: el('labelBgColor'),
+      btnApplyLabel: el('btnApplyLabel'), btnAddFreeLabel: el('btnAddFreeLabel'),
+      // ícones
+      markerIcon: el('markerIcon'), btnAddPoint: el('btnAddPoint'), btnApplyIcon: el('btnApplyIcon'),
+      // edição
+      btnEdit: el('btnEdit'), btnDelete: el('btnDelete'), btnSaveEdits: el('btnSaveEdits'), btnCloseToolbar: el('btnCloseToolbar'), openToolbarBtn: el('openToolbarBtn'),
+      // geojson
+      exportGeoJSON: el('exportGeoJSON'), geojsonInput: el('geojsonInput'),
+      // coordenadas
+      coordMain: el('coordMain'), coordZoom: el('coordZoom'), coordState: el('coordState'), lockBtn: el('lockBtn'), copyBtn: el('copyBtn'),
+      // régua
+      rulerBtn: el('rulerBtn'), rulerValue: el('rulerValue'), rulerClear: el('rulerClear'),
+      // loading
+      loading: el('loadingMessage')
+    };
+
+    const CONST = {
+      ACRES_PER_M2: 0.00024710538146717,
+      START_ICON: L.icon({ iconUrl:'https://img.icons8.com/emoji/48/000000/triangular-flag.png', iconSize:[24,24], iconAnchor:[12,24] }),
+      END_ICON:   L.icon({ iconUrl:'https://img.icons8.com/emoji/48/000000/chequered-flag.png',  iconSize:[24,24], iconAnchor:[12,24] })
+    };
+
+    // Helpers visuais e de formatação
+    const showLoading = (msg='Carregando…') => { UI.loading.textContent = msg; UI.loading.style.display='block'; };
+    const hideLoading = () => { UI.loading.style.display='none'; };
+    const fmtN = (n, d=2) => Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+    const escapeHTML = (s) => (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    const toHex = (c)=>{ if(!c) return '#000000'; if(c[0]==='#') return c; const ctx=document.createElement('canvas').getContext('2d'); ctx.fillStyle=c; const m=ctx.fillStyle.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/); const h=n=>('0'+(+n).toString(16)).slice(-2); return m?`#${h(m[1])}${h(m[2])}${h(m[3])}`:'#000000'; };
+
+    /* =========================================================
+     [I.2] MÓDULO: Base (camadas de mapa)
+     - Define tiles (OSM, Google, Esri, etc.)
+     - Troca de base e rótulos
+    ========================================================*/
+    const Base = (()=>{
+
+      // Definição de layers base
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:23,attribution:'© OpenStreetMap'});
+      const gStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:23,subdomains:['mt0','mt1','mt2','mt3'],attribution:'© Google'});
+      const gHybrid  = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:23,subdomains:['mt0','mt1','mt2','mt3'],attribution:'© Google'});
+      const esriSat  = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:23,attribution:'Tiles © Esri'});
+      const esriLbls = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}')
+      ]);
+      const osmHOT   = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:22,attribution:'© OpenStreetMap contributors, HOT'});
+      const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'});
+      const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:22,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'});
+      const cartoDark  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:22,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'});
+      const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:22,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'});
+      const esriTopo = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — World Topo Map'});
+      const esriStreets = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — World Street Map'});
+      const esriTerrain = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,attribution:'Tiles © Esri — Terrain Base'});
+      const esriHillshade = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — Hillshade'});
+      const esriClarity = L.tileLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — Imagery (Clarity)'});
+
+      // Lista para remover fácil
+      const all = [osm,gStreets,gHybrid,esriSat,esriLbls,osmHOT,openTopo,cartoLight,cartoDark,cartoVoyager,esriTopo,esriStreets,esriTerrain,esriHillshade,esriClarity];
+
+      // Troca a base atual e aplica rótulos quando satélite/híbrido
+      function setBase(name){
+        showLoading('Carregando mapa…');
+        all.forEach(l=>{ try{ E.map.removeLayer(l); }catch{} });
+        if(name==='osm') E.map.addLayer(osm);
+        if(name==='gStreets') E.map.addLayer(gStreets);
+        if(name==='gHybrid') E.map.addLayer(gHybrid);
+        if(name==='esriSat') E.map.addLayer(esriSat);
+        if(name==='osmHOT') E.map.addLayer(osmHOT);
+        if(name==='openTopo') E.map.addLayer(openTopo);
+        if(name==='cartoLight') E.map.addLayer(cartoLight);
+        if(name==='cartoDark') E.map.addLayer(cartoDark);
+        if(name==='cartoVoyager') E.map.addLayer(cartoVoyager);
+        if(name==='esriTopo') E.map.addLayer(esriTopo);
+        if(name==='esriStreets') E.map.addLayer(esriStreets);
+        if(name==='esriTerrain') E.map.addLayer(esriTerrain);
+        if(name==='esriHillshade') E.map.addLayer(esriHillshade);
+        if(name==='esriImageryClarity') E.map.addLayer(esriClarity);
+
+        // rótulos sobre satélite/híbrido
+        if((name==='gHybrid'||name==='esriSat'||name==='esriImageryClarity') && UI.chkLabels.checked) E.map.addLayer(esriLbls);
+        setTimeout(hideLoading, 300);
+      }
+
+      // Inicializa mapa e eventos de UI do módulo
+      function init(){
+        E.map = L.map('map',{maxZoom:23}).setView([-2.756,-48.930],12);
+        L.control.scale({imperial:false,position:'bottomleft'}).addTo(E.map);
+        osm.addTo(E.map); // base inicial
+        UI.baseSelect.addEventListener('change', e=> setBase(e.target.value));
+        UI.chkLabels.addEventListener('change', ()=> setBase(UI.baseSelect.value));
+        UI.togglePanel.addEventListener('click', ()=> el('controls').classList.toggle('hidden'));
+        // preferir Clarity na largada
+        setBase('esriImageryClarity');
+      }
+
+      return { init, setBase };
+    })();
+
+    /* =========================================================
+     [I.3] MÓDULO: Search (geocodificação + lat,lng direto)
+    ========================================================*/
+    const Search = (()=>{
+
+      // tenta detectar entrada como "lat,lng"
+      const parseLatLng = (txt)=>{
+        const t = txt.trim().replace(';',',').replace(/\s+/g,'').replace(/−/g,'-');
+        const m = t.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*,\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+        if(!m) return null;
+        const lat = parseFloat(m[1].replace(',','.'));
+        const lng = parseFloat(m[2].replace(',','.'));
+        if(Number.isNaN(lat)||Number.isNaN(lng)||lat<-90||lat>90||lng<-180||lng>180) return null;
+        return L.latLng(lat,lng);
+      };
+
+      // geocoding por Nominatim
+      const geocode = async(q)=>{
+        const url=`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=8`;
+        const res = await fetch(url,{headers:{'Accept-Language':'pt-BR'}});
+        return res.json();
+      };
+      const shortName = (s)=> (s||'').split(',')[0];
+
+      async function doSearch(){
+        const q = UI.searchBox.value.trim(); if(!q) return;
+        const ll = parseLatLng(q);
+        if(ll){ E.map.setView(ll, Math.max(14,E.map.getZoom())); Coord.fixAt(ll); UI.searchResults.innerHTML=''; return; }
+        UI.searchResults.textContent='Buscando…';
+        try{
+          const list = await geocode(q);
+          if(!list.length){ UI.searchResults.textContent='Nada encontrado.'; return; }
+          UI.searchResults.innerHTML = list.map(it=>`
+            <div style="margin:6px 0">
+              <a href="#" data-lat="${it.lat}" data-lon="${it.lon}" data-bbox="${(it.boundingbox||[]).join('|')}">
+                <b>${shortName(it.display_name)}</b><br/><span class="coord-small">${it.display_name}</span>
+              </a>
+            </div>`).join('');
+        }catch{
+          UI.searchResults.textContent='Falha na busca.';
+        }
+      }
+
+      function bind(){
+        UI.searchBtn.addEventListener('click', doSearch);
+        UI.searchBox.addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
+        UI.searchResults.addEventListener('click', e=>{
+          const a = e.target.closest('a[data-lat]'); if(!a) return; e.preventDefault();
+          const lat = parseFloat(a.dataset.lat), lon = parseFloat(a.dataset.lon);
+          const bbox = (a.dataset.bbox||'').split('|').map(Number);
+          if(bbox.length===4 && bbox.every(x=>!Number.isNaN(x))){
+            const b = L.latLngBounds([[bbox[0],bbox[2]],[bbox[1],bbox[3]]]);
+            E.map.fitBounds(b,{padding:[16,16]});
+          }else{ E.map.setView([lat,lon],16); }
+          Coord.fixAt(L.latLng(lat,lon)); UI.searchResults.innerHTML='';
+        });
+        UI.gpsBtn.addEventListener('click', ()=>{
+          if(!navigator.geolocation) return alert('Geolocalização não suportada');
+          navigator.geolocation.getCurrentPosition(
+            p=>{ const ll=L.latLng(p.coords.latitude,p.coords.longitude); E.map.setView(ll,16); Coord.fixAt(ll); },
+            ()=> alert('Não foi possível obter sua localização.')
+          );
+        });
+      }
+
+      return { bind };
+    })();
+
+    /* =========================================================
+     [I.4] MÓDULO: PDF (ler bounds GPTS + renderizar 1ª página)
+    ========================================================*/
+    const PDF = (()=>{
+
+      let adjustRect=null, refRect=null, dragging=false, startLatLng=null, startBounds=null;
+
+      // utils para parse de /GPTS
+      const nums=(str)=> Array.from(str.matchAll(/[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g), m=>Number(m[0]));
+      const pairLatLon=(arr)=>{ const p=[]; for(let i=0;i+1<arr.length;i+=2) p.push([arr[i],arr[i+1]]); return p; };
+      const fmt6=(n)=> (+n).toFixed(6);
+      const setInputsFromBounds=(b)=>{ UI.extW.value=fmt6(b.getWest()); UI.extS.value=fmt6(b.getSouth()); UI.extE.value=fmt6(b.getEast()); UI.extN.value=fmt6(b.getNorth()); };
+      const boundsFromInputs=()=> {
+        const w=parseFloat(UI.extW.value), s=parseFloat(UI.extS.value), e=parseFloat(UI.extE.value), n=parseFloat(UI.extN.value);
+        if([w,s,e,n].some(v=>Number.isNaN(v))) return null;
+        return L.latLngBounds([[s,w],[n,e]]);
+      };
+      const shiftBounds=(b, dLat,dLng)=> L.latLngBounds([[b.getSouth()+dLat,b.getWest()+dLng],[b.getNorth()+dLat,b.getEast()+dLng]]);
+      const freeze=(on)=>{
+        if(on){ E.map.dragging.disable();E.map.scrollWheelZoom.disable();E.map.doubleClickZoom.disable();E.map.boxZoom.disable();E.map.touchZoom.disable();E.map.keyboard.disable(); document.body.classList.add('adjust-mode'); }
+        else { E.map.dragging.enable();E.map.scrollWheelZoom.enable();E.map.doubleClickZoom.enable();E.map.boxZoom.enable();E.map.touchZoom.enable();E.map.keyboard.enable(); document.body.classList.remove('adjust-mode'); }
+      };
+
+      // nomes únicos p/ múltiplos PDFs iguais
+      function uniqueName(name){
+        if(!E.pdfLayers[name]) return name;
+        let i=2; const base=name.replace(/(\.pdf)$/i,''); const ext=name.match(/\.pdf$/i)?'.pdf':'';
+        while(E.pdfLayers[`${base} (${i})${ext}`]) i++;
+        return `${base} (${i})${ext}`;
+      }
+
+      // atualiza select e exibe painel extent
+      function refreshSelect(){
+        UI.pdfSelect.innerHTML='';
+        const names=Object.keys(E.pdfLayers);
+        names.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; UI.pdfSelect.appendChild(o); });
+        if(names.length){
+          if(!E.activePdf || !E.pdfLayers[E.activePdf]) E.activePdf = names.at(-1);
+          UI.pdfSelect.value = E.activePdf;
+          updateInputs();
+          el('extentInfo').style.display='block';
+        } else el('extentInfo').style.display='none';
+      }
+      function updateInputs(){
+        const lyr=E.pdfLayers[E.activePdf]; if(!lyr) return;
+        const b=lyr.getBounds(); setInputsFromBounds(b);
+      }
+
+      // controle de opacidade + remover
+      function addOpacityControl(name){
+        const wrap = UI.pdfControls;
+        const row = document.createElement('div');
+        row.style.cssText='display:grid;grid-template-columns:140px 44px auto;row-gap:4px;column-gap:8px;align-items:center;margin:6px 0';
+        row.innerHTML = `
+          <div style="grid-column:1/-1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</div>
+          <input class="rng" type="range" min="0" max="1" step="0.1" value="1" style="grid-column:1/2;margin:0">
+          <div class="pct" style="grid-column:2/3;font-size:11px;color:#6b7280;text-align:right">100%</div>
+          <button class="btn btn-danger" title="Remover" style="grid-column:3/4;justify-self:end"><i class="fas fa-trash"></i></button>
+        `;
+        const range=row.querySelector('.rng'), pct=row.querySelector('.pct'), del=row.querySelector('button');
+        range.oninput=()=>{ if(E.pdfLayers[name]){ E.pdfLayers[name].setOpacity(range.value); pct.textContent=Math.round(range.value*100)+'%'; } };
+        del.onclick=()=>{
+          cleanupAdjust();
+          const lyr=E.pdfLayers[name]; if(lyr){ try{E.map.removeLayer(lyr);}catch{} delete E.pdfLayers[name]; }
+          row.remove(); if(E.activePdf===name) E.activePdf=null; refreshSelect();
+        };
+        wrap.appendChild(row);
+      }
+
+      function cleanupAdjust(){
+        if(adjustRect){
+          const {onDown,onMove,onUp}=adjustRect._handlers||{};
+          E.map.off('mousedown',onDown);E.map.off('mousemove',onMove);E.map.off('mouseup',onUp);
+          E.map.removeLayer(adjustRect); adjustRect=null;
+        }
+        if(refRect){ E.map.removeLayer(refRect); refRect=null; }
+        dragging=false; startLatLng=null; startBounds=null; freeze(false);
+      }
+
+      function bind(){
+        if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.worker.min.js';
+
+        // carregar PDFs (extrai /GPTS + renderiza 1ª página)
+        UI.pdfInput.addEventListener('change',(e)=>{
+          [...e.target.files].forEach(async(file)=>{
+            if(file.type!=='application/pdf'){ alert('PDF inválido'); return; }
+            showLoading('Carregando MPS…');
+            try{
+              const buf=await file.arrayBuffer();
+              const text=new TextDecoder('latin1').decode(new Uint8Array(buf));
+              const m=/\/GPTS\s*\[\s*([^\]]+)\]/.exec(text);
+              if(!m){ alert(`Nenhum /GPTS encontrado em: ${file.name}`); return; }
+
+              const coords=pairLatLon(nums(m[1]));
+              const lats=coords.map(c=>c[0]), lons=coords.map(c=>c[1]);
+              const bounds=[[Math.min(...lats),Math.min(...lons)],[Math.max(...lats),Math.max(...lons)]];
+              E.lastPdfBounds=bounds;
+
+              const name=uniqueName(file.name);
+
+              if(window.pdfjsLib){
+                const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+                const page=await pdf.getPage(1);
+                const viewport=page.getViewport({scale:3});
+                const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+                canvas.height=viewport.height; canvas.width=viewport.width;
+                await page.render({canvasContext:ctx,viewport}).promise;
+                const url=canvas.toDataURL();
+
+                if(E.pdfLayers[name]) E.map.removeLayer(E.pdfLayers[name]);
+                E.pdfLayers[name]=L.imageOverlay(url,bounds,{opacity:1}).addTo(E.map);
+                addOpacityControl(name);
+                E.activePdf=name; refreshSelect();
+              }
+              E.map.fitBounds(bounds,{padding:[16,16]});
+              E.toolbar.style.display='block';
+            }catch(err){
+              console.error(err); alert(`Falha ao processar o PDF: ${file.name}`);
+            }finally{ hideLoading(); }
+          });
+        });
+
+        // seleção de carta ativa e ajuste por arraste
+        UI.pdfSelect.addEventListener('change',()=>{ E.activePdf=UI.pdfSelect.value; updateInputs(); });
+
+        UI.btnAdjustPdf.addEventListener('click',()=>{
+          if(UI.lockPdf.checked) return alert('Carta travada. Desmarque "Travar" para ajustar.');
+          const lyr=E.pdfLayers[E.activePdf]; if(!lyr) return alert('Carregue/seleciona uma carta.');
+          if(adjustRect) return;
+
+          freeze(true);
+          const b=lyr.getBounds();
+          adjustRect = L.rectangle(b,{color:'#2563eb',weight:2,fillOpacity:0.08,fillColor:'#60a5fa',dashArray:'6,6',interactive:false}).addTo(E.map);
+          refRect    = L.rectangle(b,{color:'#ef4444',weight:2,fillOpacity:0,dashArray:'4,6',interactive:false}).addTo(E.map);
+          dragging=false; startLatLng=null; startBounds=b;
+
+          const onDown=(ev)=>{ dragging=true; startLatLng=ev.latlng; };
+          const onMove=(ev)=>{
+            if(!dragging||!adjustRect) return;
+            const dLat=ev.latlng.lat-startLatLng.lat, dLng=ev.latlng.lng-startLatLng.lng;
+            const nb=shiftBounds(startBounds,dLat,dLng);
+            adjustRect.setBounds(nb); lyr.setBounds(nb); setInputsFromBounds(nb);
+          };
+          const onUp=()=>{ if(dragging){ dragging=false; startBounds=adjustRect.getBounds(); } };
+
+          E.map.on('mousedown',onDown);E.map.on('mousemove',onMove);E.map.on('mouseup',onUp);
+          adjustRect._handlers={onDown,onMove,onUp};
+        });
+
+        UI.btnApplyPdf.addEventListener('click',()=>{
+          const lyr=E.pdfLayers[E.activePdf]; if(!lyr) return;
+          const b=adjustRect?adjustRect.getBounds():boundsFromInputs();
+          if(!b) return alert('Valores de extent inválidos.');
+          lyr.setBounds(b);
+          E.lastPdfBounds=[[b.getSouth(),b.getWest()],[b.getNorth(),b.getEast()]];
+          cleanupAdjust(); updateInputs();
+        });
+
+        UI.btnCancelAdjust.addEventListener('click',()=>{ cleanupAdjust(); updateInputs(); });
+      }
+
+      return { bind };
+    })();
+
+    /* =========================================================
+     [I.5] MÓDULO: KML (importa, seta setas, flags e clusters)
+    ========================================================*/
+    const KML = (()=>{
+
+      function clear(){
+        if(E.kmlLayer){ E.map.removeLayer(E.kmlLayer); E.kmlLayer=null; }
+        if(E.kmlClusters){ E.map.removeLayer(E.kmlClusters); E.kmlClusters=null; }
+        E.routeLines.forEach(l=>E.map.removeLayer(l)); E.routeLines=[];
+        E.decorators.forEach(d=>E.map.removeLayer(d)); E.decorators=[];
+        E.startMk.forEach(m=>E.map.removeLayer(m)); E.startMk=[];
+        E.endMk.forEach(m=>E.map.removeLayer(m)); E.endMk=[];
+      }
+
+      function bind(){
+        UI.kmlInput.addEventListener('change', async(ev)=>{
+          if(!ev.target.files?.length) return;
+          clear();
+          showLoading('Carregando KML…');
+          try{
+            const files=[...ev.target.files];
+            E.kmlClusters=L.markerClusterGroup({maxClusterRadius:z=> z<10?80:40, spiderfyOnMaxZoom:true, showCoverageOnHover:false, zoomToBoundsOnClick:true, disableClusteringAtZoom:17});
+
+            for(const f of files){
+              const text=await f.text();
+              const kml=new DOMParser().parseFromString(text,'text/xml');
+              const gj=toGeoJSON.kml(kml);
+              if(!gj.features.length){ console.warn('KML sem dados:',f.name); continue; }
+
+              const temp=L.geoJSON(gj,{
+                style:()=>({color:'#c53030',weight:2}),
+                onEachFeature:(ft,layer)=>{
+                  if(ft.geometry.type==='Point'){
+                    layer.bindPopup(ft.properties.description||''); E.kmlClusters.addLayer(layer);
+                  } else if(ft.geometry.type==='LineString'){
+                    layer.addTo(E.map); E.routeLines.push(layer);
+                    const coords=Array.isArray(ft.geometry.coordinates)?ft.geometry.coordinates:[];
+                    if(coords.length>=1){
+                      const s=L.marker([coords[0][1],coords[0][0]],{icon:CONST.START_ICON}).addTo(E.map); E.startMk.push(s);
+                    }
+                    if(coords.length>=2){
+                      const last=coords.at(-1); const e2=L.marker([last[1],last[0]],{icon:CONST.END_ICON}).addTo(E.map); E.endMk.push(e2);
+                    }
+                    const deco=L.polylineDecorator(layer,{patterns:[{offset:'3%',repeat:150,symbol:L.Symbol.arrowHead({pixelSize:10,polygon:true,pathOptions:{color:'#dd6b20',fillColor:'#dd6b20',fillOpacity:1,stroke:true}})}]}).addTo(E.map);
+                    E.decorators.push(deco);
+                  }
+                }
+              });
+              E.kmlLayer = E.kmlLayer ? L.layerGroup([E.kmlLayer,temp]) : temp;
+            }
+            if(E.kmlClusters) E.map.addLayer(E.kmlClusters);
+            if(E.kmlLayer) E.map.addLayer(E.kmlLayer);
+
+            const group=new L.FeatureGroup([E.kmlClusters,...E.routeLines,...E.startMk,...E.endMk].filter(Boolean));
+            if(group.getLayers().length) E.map.fitBounds(group.getBounds(),{padding:[16,16]});
+          }catch(err){
+            console.error('Erro ao carregar KML:',err);
+            alert('Falha ao carregar um ou mais KML. Veja o console para detalhes.');
+          }finally{ hideLoading(); }
+        });
+
+        UI.clearKML.addEventListener('click', clear);
+      }
+      return { bind };
+    })();
+
+    /* =========================================================
+     [I.6] MÓDULO: Draw (desenho/edição/estilo/etiquetas/ícones)
+    ========================================================*/
+    const Draw = (()=>{
+
+      const handlers={};
+      let selected=null;
+
+      // identifica marcador de etiqueta (divIcon com classe label-marker)
+      function isLabel(layer){
+        return layer instanceof L.Marker
+          && layer.options?.icon?.options?.className==='label-marker';
+      }
+
+      // cria ícone de etiqueta como HTML (divIcon)
+      function buildLabelIcon(text,opts){
+        const style=[
+          `font-size:${opts.size}px`,`color:${opts.color}`,`font-family:${opts.font}`,`white-space:nowrap`,`line-height:1.15`,
+          opts.noBg? 'background:transparent;border:0;box-shadow:none;padding:0' : `background:${opts.bgColor};border:1px solid #e5e7eb;box-shadow:0 2px 6px rgba(0,0,0,.08);padding:4px 6px`
+        ].join(';');
+        return L.divIcon({className:'label-marker',html:`<div class="bubble" style="${style}">${escapeHTML(text||'')}</div>`,iconSize:null,iconAnchor:[0,0]});
+      }
+
+      const currentLabelOpts = ()=>({
+        size:+UI.labelSize.value||12,
+        color:UI.labelColor.value||'#111827',
+        font:UI.labelFont.value||"system-ui,-apple-system,Segoe UI,Roboto,Ubuntu",
+        noBg:!!UI.labelNoBg.checked,
+        bgColor:UI.labelBg.value||'#ffffff'
+      });
+
+      const scaledSize=(base,refZoom)=>{
+        const z=E.map.getZoom();
+        const factor=Math.pow(2, z-(refZoom??z));
+        return Math.max(6, Math.min(120, base*factor));
+      };
+
+      const iconFor=(key,sizePx=22)=>{
+        const mapx={ pin:'📍',tractor:'🚜',fazenda:'🏡',sementes:'🌱',colheita:'🌾',insumo:'🧪',pulverizacao:'🛩️',praga:'🐛',besouro:'🪲',gafanhoto:'🦗',fogo:'🔥',abrigo:'⛺',agua:'💧',alerta:'⚠️',posto:'🏣',hospital:'🏥',galpao:'🏚️',arvore:'🌳',pedra:'🪨' };
+        const emoji=mapx[key]||'📍';
+        return L.divIcon({html:`<div class="emoji" style="font-size:${sizePx}px">${emoji}</div>`,iconSize:null,iconAnchor:[0,0],className:'emoji-pin'});
+      };
+
+      function attach(layer){
+        layer.on('click', ()=> select(layer));
+        if(layer instanceof L.Marker){ layer.options.draggable=true; }
+        if(isLabel(layer)){
+          layer.setZIndexOffset(1000);
+          layer.on('dblclick', (ev)=>{ ev.originalEvent?.preventDefault(); ev.originalEvent?.stopPropagation(); LabelEditor.open(layer); });
+        }
+      }
+
+      function select(layer){
+        selected=layer; try{layer.openPopup();}catch{}
+        E.toolbar.style.display='block';
+        const pos=JSON.parse(sessionStorage.getItem('toolbar_pos')||'null');
+        if(pos){ Object.assign(E.toolbar.style,{left:pos.left,top:pos.top,right:'auto',bottom:'auto'}); }
+        syncToolbar();
+      }
+
+      function syncToolbar(){
+        if(!selected) return;
+        if(isLabel(selected)){
+          const t=selected.options.htmlText||'';
+          const o=selected._labelOpts||currentLabelOpts();
+          UI.labelText.value=t;
+          UI.labelSize.value=Math.round(selected._baseSizePx||o.size);
+          UI.labelColor.value=o.color; UI.labelFont.value=o.font; UI.labelNoBg.checked=!!o.noBg; UI.labelBg.value=o.bgColor||'#ffffff';
+          return;
+        }
+        if(selected.options && selected.setStyle){
+          UI.strokeColor.value=toHex(selected.options.color||'#1f2937');
+          UI.fillColor.value=toHex(selected.options.fillColor||'#60a5fa');
+          UI.strokeWeight.value=selected.options.weight||2;
+          UI.fillOpacity.value=(selected.options.fillOpacity!=null?selected.options.fillOpacity:0.25);
+          if(selected._labelRef){
+            const t=selected._labelRef.options.htmlText||'';
+            const o=selected._labelRef._labelOpts||currentLabelOpts();
+            UI.labelText.value=t; UI.labelSize.value=Math.round(selected._labelRef._baseSizePx||o.size);
+            UI.labelColor.value=o.color; UI.labelFont.value=o.font; UI.labelNoBg.checked=!!o.noBg; UI.labelBg.value=o.bgColor||'#ffffff';
+          }else UI.labelText.value='';
+        }
+      }
+
+      function showInfo(layer){
+        try{
+          const gj=layer.toGeoJSON(); if(!gj.geometry) return;
+          const t=gj.geometry.type; let html='';
+          if(t==='Polygon'||t==='MultiPolygon'){
+            const area_m2=turf.area(gj), area_ha=area_m2/10000, area_km2=area_m2/1e6, acres=area_m2*CONST.ACRES_PER_M2;
+            const per_m=turf.length(turf.polygonToLine(gj),{units:'meters'}), per_km=per_m/1000;
+            const centroid=turf.centroid(gj).geometry.coordinates;
+            const verts=countVerts(gj.geometry);
+            const b=layer.getBounds?.();
+            let w_km='—', h_km='—';
+            if(b){
+              const midLat=(b.getSouth()+b.getNorth())/2, midLon=(b.getWest()+b.getEast())/2;
+              w_km=turf.distance([b.getWest(),midLat],[b.getEast(),midLat],{units:'kilometers'});
+              h_km=turf.distance([midLon,b.getSouth()],[midLon,b.getNorth()],{units:'kilometers'});
+            }
+            html = `<div style="font-size:13px;line-height:1.35">
+              <div><b>Área:</b> ${fmtN(area_m2,0)} m² • ${fmtN(area_ha,4)} ha • ${fmtN(area_km2,4)} km² • ${fmtN(acres,2)} acres</div>
+              <div><b>Perímetro:</b> ${fmtN(per_m,1)} m • ${fmtN(per_km,4)} km</div>
+              <div><b>Vértices:</b> ${verts}</div>
+              <div><b>Centro:</b> ${fmtN(centroid[1],6)}, ${fmtN(centroid[0],6)}</div>
+              <div><b>BBox:</b> ${typeof w_km==='number'?fmtN(w_km,3):w_km} km × ${typeof h_km==='number'?fmtN(h_km,3):h_km} km</div>
+            </div>`;
+          } else if(t==='LineString'||t==='MultiLineString'){
+            const len_km=turf.length(gj,{units:'kilometers'}), len_m=len_km*1000, len_mi=turf.length(gj,{units:'miles'}), verts=countVerts(gj.geometry);
+            html=`<div style="font-size:13px;line-height:1.35">
+              <div><b>Comprimento:</b> ${fmtN(len_m,1)} m • ${fmtN(len_km,3)} km • ${fmtN(len_mi,3)} mi</div>
+              <div><b>Segmentos:</b> ${verts}</div>
+            </div>`;
+          } else if(layer instanceof L.Circle){
+            const r=layer.getRadius(); const area_m2=Math.PI*r*r, area_ha=area_m2/10000, area_km2=area_m2/1e6, circ=2*Math.PI*r; const c=layer.getLatLng();
+            html=`<div style="font-size:13px;line-height:1.35">
+              <div><b>Raio:</b> ${fmtN(r,1)} m</div>
+              <div><b>Circunferência:</b> ${fmtN(circ,1)} m</div>
+              <div><b>Área:</b> ${fmtN(area_m2,0)} m² • ${fmtN(area_ha,4)} ha • ${fmtN(area_km2,4)} km²</div>
+              <div><b>Centro:</b> ${fmtN(c.lat,6)}, ${fmtN(c.lng,6)}</div>
+            </div>`;
+          } else if(gj.geometry.type==='Point' && !isLabel(layer)){
+            const [lng,lat]=gj.geometry.coordinates;
+            html=`<div style="font-size:13px;line-height:1.35">
+              <div><b>Ponto:</b> ${fmtN(lat,6)}, ${fmtN(lng,6)}</div>
+              <div style="color:#6b7280">Dica: segure <b>Alt</b> e clique para copiar.</div>
+            </div>`;
+          }
+          layer.bindPopup(html);
+        }catch{}
+      }
+
+      function countVerts(geom){
+        let c=0;
+        if(geom.type==='Polygon') geom.coordinates.forEach(r=> c+=Math.max(0,r.length-1));
+        else if(geom.type==='MultiPolygon') geom.coordinates.forEach(p=> p.forEach(r=> c+=Math.max(0,r.length-1)));
+        else if(geom.type==='LineString') c=geom.coordinates.length-1;
+        else if(geom.type==='MultiLineString') geom.coordinates.forEach(ls=> c+=Math.max(0,ls.length-1));
+        return c;
+      }
+
+      function applyZoomScaling(){
+        const z=E.map.getZoom();
+        E.drawn.eachLayer(l=>{
+          if(isLabel(l)){
+            const o=l._labelOpts||currentLabelOpts();
+            const size=scaledSize(l._baseSizePx||o.size||12, l._scaleRefZoom||z);
+            const next={...o,size}; l._labelOpts=next; l.setIcon(buildLabelIcon(l.options.htmlText||'', next));
+          } else if(l instanceof L.Marker && l.options?.icon?.options?.className==='emoji-pin'){
+            const size=scaledSize(l._baseSizePx||22, l._scaleRefZoom||z);
+            l.setIcon(iconFor(l._emojiKey||'pin', size));
+          }
+        });
+      }
+
+      function bind(){
+        // grupo de desenho + controle de edição
+        E.drawn=new L.FeatureGroup(); E.map.addLayer(E.drawn);
+        const ctrl=new L.Control.Draw({position:'topright',draw:false,edit:{featureGroup:E.drawn,remove:true}}); E.map.addControl(ctrl);
+
+        // “handlers” de criação
+        handlers.polygon   = new L.Draw.Polygon(E.map,{shapeOptions:{color:'#1d4ed8',weight:2,fillColor:'#60a5fa',fillOpacity:.25}});
+        handlers.rectangle = new L.Draw.Rectangle(E.map,{shapeOptions:{color:'#1d4ed8',weight:2,fillColor:'#60a5fa',fillOpacity:.25}});
+        handlers.polyline  = new L.Draw.Polyline(E.map,{shapeOptions:{color:'#1d4ed8',weight:3}});
+        handlers.circle    = new L.Draw.Circle(E.map,{shapeOptions:{color:'#16a34a',weight:2,fillColor:'#86efac',fillOpacity:.25}});
+        handlers.marker    = new L.Draw.Marker(E.map,{icon:iconFor('pin')});
+
+        // botões de criar
+        UI.btnPoly.onclick   = ()=> handlers.polygon.enable();
+        UI.btnRect.onclick   = ()=> handlers.rectangle.enable();
+        UI.btnLine.onclick   = ()=> handlers.polyline.enable();
+        UI.btnCircle.onclick = ()=> handlers.circle.enable();
+        UI.btnMarker.onclick = ()=> handlers.marker.enable();
+
+        // quando cria, adiciona, anexa handlers e mostra popup de info
+        E.map.on(L.Draw.Event.CREATED,(e)=>{ const layer=e.layer; E.drawn.addLayer(layer); attach(layer); showInfo(layer); select(layer); });
+        E.map.on('draw:edited',(e)=>{ e.layers.eachLayer(l=>{ showInfo(l); if(l._labelRef && l.getBounds){ l._labelRef.setLatLng(l.getBounds().getCenter()); } }); });
+
+        // edição
+        UI.btnEdit.onclick = ()=>{
+          if(!selected || isLabel(selected)) return;
+          E.editSession = new L.EditToolbar.Edit(E.map,{featureGroup:E.drawn}); E.editSession.enable();
+        };
+        UI.btnSaveEdits.onclick = ()=>{
+          if(E.editSession){ try{E.editSession.save();}catch{} E.editSession.disable(); E.editSession=null; }
+        };
+        UI.btnDelete.onclick = ()=>{
+          if(!selected) return;
+          if(selected._labelRef){ E.drawn.removeLayer(selected._labelRef); }
+          E.drawn.removeLayer(selected); selected=null; E.toolbar.style.display='none';
+        };
+
+        // estilos (inputs)
+        [UI.strokeColor,UI.fillColor,UI.strokeWeight,UI.fillOpacity].forEach(node=>{
+          node.addEventListener('input', ()=>{
+            if(!selected) return;
+            if(selected.setStyle){
+              selected.setStyle({
+                color:UI.strokeColor.value,
+                weight:parseInt(UI.strokeWeight.value,10),
+                fillColor:UI.fillColor.value,
+                fillOpacity:parseFloat(UI.fillOpacity.value)
+              });
+            }
+          });
+        });
+
+        // labels (evitar múltiplas linhas)
+        UI.labelText.addEventListener('keydown', e=>{ if(e.key==='Enter') e.preventDefault(); });
+        UI.labelText.addEventListener('input', ()=>{ UI.labelText.value = UI.labelText.value.replace(/\s*\n+\s*/g,' '); });
+
+        // aplicar mudanças “ao vivo” quando a camada selecionada é etiqueta
+        [UI.labelSize,UI.labelColor,UI.labelFont,UI.labelNoBg,UI.labelBg].forEach(n=>{
+          n.addEventListener('input', ()=>{
+            if(selected && isLabel(selected)){
+              const t=selected.options.htmlText||''; const o=currentLabelOpts();
+              selected._baseSizePx=o.size; selected._labelOpts={...(selected._labelOpts||{}),...o};
+              applyZoomScaling(); selected.options.htmlText=t;
+            }
+          });
+        });
+
+        // criar/atualizar etiqueta
+        UI.btnApplyLabel.onclick = ()=>{
+          const text = UI.labelText.value.replace(/\s*\n+\s*/g,' ');
+          const opts = currentLabelOpts();
+          if(selected && isLabel(selected)){
+            selected.options.htmlText=text; selected._labelOpts=opts; selected._baseSizePx=opts.size;
+            selected._scaleRefZoom = selected._scaleRefZoom ?? E.map.getZoom();
+            selected.setIcon( buildLabelIcon(text,{...opts,size:scaledSize(opts.size, selected._scaleRefZoom)}) );
+            return;
+          }
+          if(selected){
+            const center=(selected.getBounds?selected.getBounds().getCenter():(selected.getLatLng?selected.getLatLng():E.map.getCenter()));
+            applyLabel(selected, center, text, opts);
+          } else {
+            createFreeLabel(E.map.getCenter(), text, opts);
+          }
+        };
+
+        // etiqueta livre (sem seleção)
+        UI.btnAddFreeLabel.onclick = ()=> createFreeLabel(E.map.getCenter(), UI.labelText.value.replace(/\s*\n+\s*/g,' '), currentLabelOpts());
+
+        // ícones para pontos (emoji)
+        UI.markerIcon.addEventListener('change', ()=>{
+          handlers.marker = new L.Draw.Marker(E.map,{icon:iconFor(UI.markerIcon.value)});
+          if(selected && selected instanceof L.Marker && !isLabel(selected)){
+            selected._emojiKey=UI.markerIcon.value; selected._baseSizePx=selected._baseSizePx||22; selected._scaleRefZoom=selected._scaleRefZoom??E.map.getZoom();
+            selected.setIcon( iconFor(UI.markerIcon.value, scaledSize(selected._baseSizePx, selected._scaleRefZoom)) );
+          }
+        });
+        UI.btnAddPoint.onclick = ()=>{
+          const m=L.marker(E.map.getCenter(),{icon:iconFor(UI.markerIcon.value),draggable:true});
+          m._emojiKey=UI.markerIcon.value; m._baseSizePx=22; m._scaleRefZoom=E.map.getZoom();
+          E.drawn.addLayer(m); attach(m); select(m); applyZoomScaling();
+        };
+        UI.btnApplyIcon.onclick = ()=>{
+          if(selected && selected instanceof L.Marker && !isLabel(selected)){
+            selected._emojiKey=UI.markerIcon.value; selected._baseSizePx=selected._baseSizePx||22; selected._scaleRefZoom=selected._scaleRefZoom??E.map.getZoom();
+            selected.setIcon( iconFor(UI.markerIcon.value, scaledSize(selected._baseSizePx, selected._scaleRefZoom)) );
+          } else alert('Selecione um ponto para aplicar o ícone.');
+        };
+
+        // abrir/fechar toolbar
+        UI.btnCloseToolbar.onclick = ()=>{ E.toolbar.style.display='none'; selected=null; };
+        UI.openToolbarBtn.addEventListener('click', ()=>{
+          E.toolbar.style.display='block';
+          const pos=JSON.parse(sessionStorage.getItem('toolbar_pos')||'null');
+          if(pos){ Object.assign(E.toolbar.style,{left:pos.left,top:pos.top,right:'auto',bottom:'auto'}); }
+        });
+
+        // reescalar etiquetas/pinos no zoom
+        E.map.on('zoomend', applyZoomScaling);
+
+        // helpers de criação
+        function createFreeLabel(latlng,text,opts){
+          const lab=L.marker(latlng,{draggable:true,icon:buildLabelIcon(text,opts),zIndexOffset:1000});
+          lab.options.htmlText=text; lab._labelOpts=opts; lab._scaleRefZoom=E.map.getZoom(); lab._baseSizePx=opts.size;
+          E.drawn.addLayer(lab); attach(lab); select(lab); applyZoomScaling();
+        }
+        function applyLabel(layer,latlng,text,opts){
+          let lab=layer._labelRef;
+          if(!lab){
+            lab=L.marker(latlng,{draggable:true,icon:buildLabelIcon(text,opts),zIndexOffset:1000});
+            lab.options.htmlText=text; lab._labelOpts=opts; lab._scaleRefZoom=E.map.getZoom(); lab._baseSizePx=opts.size;
+            E.drawn.addLayer(lab); layer._labelRef=lab; attach(lab);
+          }else{
+            lab.setLatLng(latlng); lab.setIcon(buildLabelIcon(text,opts));
+            lab.options.htmlText=text; lab._labelOpts=opts; lab._baseSizePx=opts.size;
+          }
+          applyZoomScaling();
+        }
+
+        // tornar toolbar arrastável e salvar posição
+        Draggable.make(E.toolbar, el('dragHandle'));
+
+        // editor inline de etiqueta (dblclick)
+        LabelEditor.init();
+      }
+
+      // Editor inline (abre input ao dar duplo clique na etiqueta)
+      const LabelEditor = (()=>{
+        let box=null, editing=null, dblWas=null;
+        function open(label){
+          close();
+          editing=label; dblWas=E.map.doubleClickZoom.enabled(); E.map.doubleClickZoom.disable();
+          const mapEl=el('map'); const p=E.map.latLngToContainerPoint(label.getLatLng());
+          box=document.createElement('div'); box.className='label-editor'; box.style.left=(p.x+8)+'px'; box.style.top=(p.y-8)+'px';
+          box.innerHTML=`<input type="text" id="__labelEdit">`; mapEl.appendChild(box);
+          const input=box.querySelector('input'); input.value=(label.options.htmlText||'').trim(); input.select(); input.focus();
+          const commit=()=>{
+            const txt=input.value.replace(/\s*\n+\s*/g,' ');
+            const o=label._labelOpts||currentLabelOpts();
+            label.options.htmlText=txt; const size=scaledSize(label._baseSizePx||o.size||12, label._scaleRefZoom||E.map.getZoom());
+            label.setIcon( buildLabelIcon(txt,{...o,size}) );
+            if(editing===label) UI.labelText.value=txt; close();
+          };
+          input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){e.preventDefault();close();} });
+          input.addEventListener('blur',commit);
+        }
+        function close(){
+          if(box && box.parentNode) box.parentNode.removeChild(box);
+          box=null; editing=null; if(dblWas) E.map.doubleClickZoom.enable(); dblWas=null;
+        }
+        function init(){
+          // fecha com ESC global (somente editor)
+          document.addEventListener('keydown',e=>{
+            if(e.key==='Escape' && box){ close(); }
+          });
+        }
+        return { open, close, init };
+      })();
+
+      return { bind, isLabel };
+    })();
+
+    /* =========================================================
+     [I.7] MÓDULO: IO (GeoJSON export/import)
+    ========================================================*/
+    const IO = (()=>{
+
+      function pickStyle(layer){
+        const o=layer.options||{};
+        return { color:o.color||'#1f2937', weight:o.weight||2, fillColor:o.fillColor||'#60a5fa', fillOpacity:(o.fillOpacity!=null?o.fillOpacity:0.25) };
+      }
+
+      // coleta tudo do FeatureGroup para um FeatureCollection
+      function collect(){
+        const fc={type:'FeatureCollection',features:[]};
+        E.drawn.eachLayer(layer=>{
+          if(Draw.isLabel(layer)){
+            const gj=layer.toGeoJSON(); const o=layer._labelOpts||{};
+            gj.properties={kind:'label',text:layer.options.htmlText||'',labelOpts:o,baseSizePx:layer._baseSizePx||o.size||12,scaleRefZoom:layer._scaleRefZoom||E.map.getZoom()};
+            fc.features.push(gj); return;
+          }
+          if(layer instanceof L.Circle){
+            const c=layer.getLatLng(); const r=layer.getRadius();
+            fc.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{kind:'circle',radiusMeters:r,style:pickStyle(layer)}});
+            return;
+          }
+          if(layer instanceof L.Marker && layer.options?.icon?.options?.className==='emoji-pin'){
+            const gj=layer.toGeoJSON();
+            gj.properties={kind:'emoji',emojiKey:layer._emojiKey||'pin',baseSizePx:layer._baseSizePx||22,scaleRefZoom:layer._scaleRefZoom||E.map.getZoom()};
+            fc.features.push(gj); return;
+          }
+          if(layer._labelRef){
+            const gj=layer.toGeoJSON(); gj.properties={style:pickStyle(layer),kind:'shape'}; fc.features.push(gj);
+            const lj=layer._labelRef.toGeoJSON(); const lo=layer._labelRef._labelOpts||{};
+            lj.properties={kind:'label',text:layer._labelRef.options.htmlText||'',labelOpts:lo,baseSizePx:layer._labelRef._baseSizePx||lo.size||12,scaleRefZoom:layer._labelRef._scaleRefZoom||E.map.getZoom()};
+            fc.features.push(lj); return;
+          }
+          if(layer.toGeoJSON){ const gj=layer.toGeoJSON(); gj.properties={style:pickStyle(layer),kind:'shape'}; fc.features.push(gj); }
+        });
+        return fc;
+      }
+
+      // baixa como arquivo .geojson
+      function download(fc){
+        const blob=new Blob([JSON.stringify(fc,null,2)],{type:'application/json'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download='agromap.geojson'; a.click(); URL.revokeObjectURL(url);
+      }
+
+      // carrega um GeoJSON e adiciona ao featureGroup
+      function load(data){
+        E.drawn.clearLayers();
+        const lyr=L.geoJSON(data,{
+          pointToLayer:(ft,latlng)=>{
+            if(ft.properties?.kind==='circle') return L.circle(latlng,{radius:ft.properties.radiusMeters||0,...ft.properties.style});
+            return L.marker(latlng);
+          },
+          onEachFeature:(ft,l)=>{
+            if(ft.properties?.style && l.setStyle) l.setStyle(ft.properties.style);
+            if(ft.properties?.kind==='label'){
+              const o=ft.properties.labelOpts||{size:12,color:'#111827',font:"system-ui,-apple-system,Segoe UI,Roboto,Ubuntu",noBg:false,bgColor:'#ffffff'};
+              const t=ft.properties.text||'';
+              const bubble = o.noBg
+                ? `background:transparent;border:0;box-shadow:none;padding:0`
+                : `background:${o.bgColor};border:1px solid #e5e7eb;box-shadow:0 2px 6px rgba(0,0,0,.08);padding:4px 6px`;
+              const lab=L.marker(l.getLatLng(),{
+                draggable:true,
+                icon:L.divIcon({className:'label-marker',html:`<div class="bubble" style="font-size:${o.size}px;color:${o.color};font-family:${o.font};${bubble};white-space:nowrap;line-height:1.15">${escapeHTML(t)}</div>`}),
+                zIndexOffset:1000
+              });
+              lab.options.htmlText=t; lab._labelOpts=o; lab._baseSizePx=ft.properties.baseSizePx||o.size||12; lab._scaleRefZoom=ft.properties.scaleRefZoom||E.map.getZoom();
+              E.drawn.addLayer(lab);
+              return;
+            }
+            if(ft.properties?.kind==='emoji'){
+              const key=ft.properties.emojiKey||'pin'; const base=ft.properties.baseSizePx||22; const refZ=ft.properties.scaleRefZoom||E.map.getZoom();
+              const mk=L.marker(l.getLatLng(),{draggable:true,icon: L.divIcon({html:`<div class="emoji" style="font-size:${base}px">${'📍'}</div>`,className:'emoji-pin'})});
+              mk._emojiKey=key; mk._baseSizePx=base; mk._scaleRefZoom=refZ;
+              E.drawn.addLayer(mk); return;
+            }
+            E.drawn.addLayer(l);
+          }
+        });
+        if(lyr.getLayers().length) E.map.fitBounds(lyr.getBounds(),{padding:[16,16]});
+      }
+
+      function bind(){
+        UI.exportGeoJSON.addEventListener('click',()=> download(collect()));
+        UI.geojsonInput.addEventListener('change',ev=>{
+          const f=ev.target.files?.[0]; if(!f) return;
+          const r=new FileReader();
+          r.onload=(e)=>{ try{ load(JSON.parse(e.target.result)); }catch{ alert('GeoJSON inválido.'); } };
+          r.readAsText(f);
+        });
+      }
+
+      return { bind };
+    })();
+
+    /* =========================================================
+     [I.8] MÓDULO: Coord (caixa de coordenadas + “fixar/copiar”)
+    ========================================================*/
+    const Coord = (()=>{
+
+      const fmt = (ll)=> `Lat: ${(+ll.lat).toFixed(6)} • Lng: ${(+ll.lng).toFixed(6)}`;
+      const fmtCopy = (ll)=> `"${(+ll.lat).toFixed(6)},${(+ll.lng).toFixed(6)}"`;
+
+      function setCross(latlng){
+        if(!latlng){ if(E.coord.cross){ E.map.removeLayer(E.coord.cross); E.coord.cross=null; } return; }
+        const html=`<div style="position:relative;width:22px;height:22px">
+          <div style="position:absolute;left:10px;top:0;bottom:0;width:2px;background:#ef4444"></div>
+          <div style="position:absolute;top:10px;left:0;right:0;height:2px;background:#ef4444"></div>
+        </div>`;
+        if(!E.coord.cross){ E.coord.cross=L.marker(latlng,{icon:L.divIcon({html,iconSize:[22,22]}),interactive:false}).addTo(E.map); }
+        else E.coord.cross.setLatLng(latlng);
+      }
+
+      function updateLabel(ll){ UI.coordMain.textContent=fmt(ll); UI.coordZoom.textContent=E.map.getZoom(); }
+
+      function fixAt(ll){
+        E.coord.locked=true; E.coord.fixed=ll;
+        updateLabel(ll); setCross(ll);
+        UI.lockBtn.innerHTML='<i class="fa-solid fa-thumbtack"></i>';
+        UI.coordState.innerHTML='<span class="coord-locked">• fixado</span>';
+      }
+
+      function bind(){
+        E.map.on('mousemove', e=>{ if(!E.coord.locked) updateLabel(e.latlng); });
+        E.map.on('zoomend', ()=>{ UI.coordZoom.textContent=E.map.getZoom(); });
+        E.map.on('click', e=>{ if(E.coord.locked) fixAt(e.latlng); });
+
+        UI.lockBtn.addEventListener('click', ()=>{
+          E.coord.locked=!E.coord.locked;
+          if(E.coord.locked) fixAt(E.map.getCenter());
+          else { E.coord.fixed=null; setCross(null); UI.lockBtn.innerHTML='<i class="fa-solid fa-thumbtack"></i>'; UI.coordState.textContent=''; }
+        });
+
+        UI.copyBtn.addEventListener('click', ()=>{
+          const ll = (E.coord.locked && E.coord.fixed) ? E.coord.fixed : E.map.getCenter();
+          navigator.clipboard?.writeText(fmtCopy(ll));
+          UI.copyBtn.innerHTML='<i class="fa-solid fa-check"></i>'; // feedback rápido
+          setTimeout(()=> UI.copyBtn.innerHTML='<i class="fa-solid fa-copy"></i>', 900);
+        });
+
+        // abrir toolbar
+        UI.openToolbarBtn.addEventListener('click', ()=>{
+          E.toolbar.style.display='block';
+          const pos=JSON.parse(sessionStorage.getItem('toolbar_pos')||'null');
+          if(pos){ Object.assign(E.toolbar.style,{left:pos.left,top:pos.top,right:'auto',bottom:'auto'}); }
+        });
+
+        updateLabel(E.map.getCenter());
+      }
+
+      return { bind, fixAt };
+    })();
+
+    /* =========================================================
+     [I.9] MÓDULO: Ruler (medições interativas)
+    ========================================================*/
+    const Ruler = (()=>{
+
+      const fmtDist=(m)=> m<1000 ? `${m.toFixed(1)} m` : `${(m/1000).toFixed((m/1000)<10?2:1)} km`;
+
+      function update(){
+        if(!E.measure.line){ UI.rulerValue.textContent='0 m'; return; }
+        const pts=E.measure.line.getLatLngs();
+        let total=0; for(let i=1;i<pts.length;i++) total += E.map.distance(pts[i-1],pts[i]);
+        UI.rulerValue.textContent=fmtDist(total);
+      }
+      function clear(){
+        E.measure.layer.clearLayers(); E.measure.points=[]; E.measure.line=null; E.measure.hasTemp=false; update();
+      }
+      function start(){
+        E.measure.on=true; UI.rulerBtn.classList.add('active'); E.map.getContainer().style.cursor='crosshair'; clear();
+        E.measure.line=L.polyline([], {color:'#2563eb',weight:3,dashArray:'6,6'}).addTo(E.measure.layer);
+        if(!E.map.hasLayer(E.measure.layer)) E.measure.layer.addTo(E.map);
+      }
+      function addPoint(ll){
+        if(!E.measure.line) return;
+        if(!E.measure.hasTemp){
+          E.measure.line.setLatLngs([ll,ll]);
+          E.measure.points.push(L.circleMarker(ll,{radius:4,color:'#2563eb',fillColor:'#2563eb',fillOpacity:1}).addTo(E.measure.layer));
+          E.measure.hasTemp=true;
+        }else{
+          const latlngs=E.measure.line.getLatLngs();
+          latlngs[latlngs.length-1]=ll;
+          E.measure.line.setLatLngs([...latlngs,ll]);
+          E.measure.points.push(L.circleMarker(ll,{radius:4,color:'#2563eb',fillColor:'#2563eb',fillOpacity:1}).addTo(E.measure.layer));
+        }
+        update();
+      }
+      function moveTemp(ll){
+        if(E.measure.on && E.measure.line && E.measure.hasTemp){
+          const latlngs=E.measure.line.getLatLngs();
+          latlngs[latlngs.length-1]=ll;
+          E.measure.line.setLatLngs(latlngs); update();
+        }
+      }
+      function finish(){
+        E.measure.on=false; UI.rulerBtn.classList.remove('active'); E.map.getContainer().style.cursor='';
+        if(E.measure.line && E.measure.line.getLatLngs().length<2) clear();
+      }
+
+      function bind(){
+        UI.rulerBtn.addEventListener('click', ()=> E.measure.on?finish():start());
+        UI.rulerClear.addEventListener('click', clear);
+        E.map.on('click', e=>{ if(E.measure.on) addPoint(e.latlng); });
+        E.map.on('mousemove', e=> moveTemp(e.latlng));
+        E.map.on('dblclick', ()=>{ if(E.measure.on) finish(); });
+        document.addEventListener('keydown', e=>{ if(e.key==='Escape' && E.measure.on) finish(); });
+      }
+
+      return { bind };
+    })();
+
+    /* =========================================================
+     [I.10] MÓDULO: Draggable (deixa a toolbar arrastável)
+    ========================================================*/
+    const Draggable = (()=>({
+      make(el,handle){
+        let sx=0,sy=0,ox=0,oy=0,drag=false;
+        const down=(x,y)=>{ drag=true; el.classList.add('dragging'); sx=x; sy=y; const r=el.getBoundingClientRect(); ox=r.left; oy=r.top; };
+        const move=(x,y)=>{ if(!drag) return; Object.assign(el.style,{left:(ox+(x-sx))+'px',top:(oy+(y-sy))+'px',right:'auto',bottom:'auto'}); };
+        const up=()=>{ if(!drag) return; drag=false; el.classList.remove('dragging'); sessionStorage.setItem('toolbar_pos', JSON.stringify({left:el.style.left, top:el.style.top})); };
+
+        handle.addEventListener('mousedown', e=>{ down(e.clientX,e.clientY); document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu); });
+        const mm=(e)=> move(e.clientX,e.clientY);
+        const mu=()=>{ document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); up(); };
+
+        handle.addEventListener('touchstart', e=>{ const t=e.touches[0]; down(t.clientX,t.clientY); },{passive:true});
+        handle.addEventListener('touchmove', e=>{ const t=e.touches[0]; move(t.clientX,t.clientY); },{passive:true});
+        handle.addEventListener('touchend', up,{passive:true});
+      }
+    }))();
+
+    /* =========================================================
+     [I.11] BOOT (inicialização dos módulos)
+    ========================================================*/
+    Base.init();
+    Search.bind();
+    PDF.bind();
+    KML.bind();
+    Draw.bind();
+    IO.bind();
+    Coord.bind();
+    Ruler.bind();
+
+  })();
+  </script>
+</body>
+</html>
