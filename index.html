@@ -1,32 +1,96 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SGC MPSBBB – Agro Map (com Toolbar otimizada)</title>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Leaflet & plugins (com defer) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style id="foucFix">body{visibility:hidden}</style>
+<script id="agroFoucFix">
+// Remove FOUC hider as soon as the DOM is ready or on a hard timeout
+(function(){
+  function show(){ try{ document.body.style.visibility = 'visible'; }catch(_){}
+    var s=document.getElementById('foucFix'); if(s&&s.parentNode){ s.parentNode.removeChild(s); } }
+  if(document.readyState === 'complete' || document.readyState === 'interactive'){ show(); }
+  else { document.addEventListener('DOMContentLoaded', show); window.addEventListener('load', show); }
+  // failsafe
+  setTimeout(show, 1500);
+})();
+</script>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
-  <script defer src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WebGeo - SGC MPSBBB – AgroMap</title>
+<!-- Leaflet & plugins (com defer) -->
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script defer="True" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ===== AGRO Performance Patches (Leaflet) =====
+(function(){
+  if(!window.L) { return; }
+  try {
+    // Patch L.map to set performance-friendly defaults
+    const _Lmap = L.map;
+    if(!_Lmap.__agro_patched){
+      L.map = function(id, opts){
+        opts = Object.assign({
+          preferCanvas: true,
+          updateWhenZooming: false,
+          updateWhenIdle: true,
+          zoomAnimation: true,
+          wheelDebounceTime: 40,
+          zoomSnap: 0.25
+        }, opts||{});
+        const m = _Lmap.call(this, id, opts);
+        // Global canvas renderer
+        if(!window.__AGRO_RENDERER__){
+          window.__AGRO_RENDERER__ = L.canvas({ padding: 0.3 });
+        }
+        return m;
+      };
+      _Lmap.__agro_patched = true;
+    }
+    // Patch L.geoJSON to inject renderer + smoothFactor by default
+    const _geo = L.geoJSON;
+    if(!_geo.__agro_patched){
+      L.geoJSON = function(geojson, options){
+        options = Object.assign({
+          renderer: window.__AGRO_RENDERER__ || L.canvas({padding:0.3}),
+          smoothFactor: 1.2,
+          tolerance: 0.0 // keep geometry but draw smoother
+        }, options||{});
+        return _geo.call(this, geojson, options);
+      };
+      _geo.__agro_patched = true;
+    }
+    // Reduce marker reflows
+    if(L.Marker && L.Marker.prototype){
+      Object.assign(L.Marker.prototype.options, {
+        keyboard:false, riseOnHover:false
+      });
+    }
+  } catch(e){ console.warn('[AGRO PERF PATCH]', e); }
+})();
+</script>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
-  <script defer src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-  <script defer src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
-  <script defer src="https://unpkg.com/togeojson@0.16.0"></script>
-  <script defer src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- Suporte a KMZ -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
-
-  <style>
+<link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" rel="stylesheet"/>
+<script defer="True" src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<link href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" rel="stylesheet"/>
+<script defer="True" src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script defer="True" src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
+<script defer="True" src="https://unpkg.com/togeojson@0.16.0"></script>
+<script defer="True" src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+<script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.min.js"></script>
+<script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Suporte a KMZ -->
+<script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Suporte a Shapefile (.zip) -->
+<script defer="True" src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
     :root{
       --brand-blue:#2563eb; --brand-blue-dark:#1d4ed8; --bg:#f4f7fb; --ink:#0f172a; --muted:#6b7280;
       --panel-grad:linear-gradient(180deg,#fff 0%,#fbfdff 100%); --card-border:#e8eef7; --ctrl-border:#e5e7eb;
@@ -138,7 +202,7 @@
     #searchBox{flex:1;min-width:0}
     #searchBtn,#gpsBtn{white-space:nowrap}
 
-    #pixCard{position:fixed;right:16px;bottom:16px;z-index:2001;width:300px;background:#fff;border:1px solid var(--card-border);border-radius:10px;box-shadow:0 18px 40px rgba(16,24,40,.18),0 4px 14px rgba(16,24,40,.08);display:none;overflow:hidden;animation:pixIn .25s ease}
+    #pixCard{position:fixed;right:16px;bottom:16px;z-index:2001;width:300px;background:#fff;border:1px solid var(--card-border);border-radius:10px;box-shadow:0 18px 40px rgba(16,24,40,.18),0 4px 14px rgba(16,24,40,.08);display:none;overflow:hidden;animation:pixIn .5s ease}
     @keyframes pixIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     #pixCard header{background:linear-gradient(90deg,var(--brand-blue),var(--brand-blue-dark));color:#fff;padding:12px;display:flex;align-items:center;justify-content:space-between}
     #pixCard .title{font-weight:800;letter-spacing:.2px}
@@ -206,7 +270,8 @@
       #sec-pdf .row label.btn,
       #sec-kml .row label.btn,
       #sec-draw .row label.btn,
-      #sec-project .row label.btn{flex:1}
+      #sec-project .row label.btn,
+      #sec-shp .row label.btn{flex:1}
 
       #pixCard{
         width:min(92vw, 420px);
@@ -231,262 +296,462 @@
       .toolbar-body{max-height:58vh}
     }
   </style>
+<script defer="True" src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script><style>
+.leaflet-popup-content .agro-pin { float:right; margin-left:8px; cursor:pointer; font-size:12px; background:#111827; color:#fff; border:0; border-radius:6px; padding:2px 6px; }
+.leaflet-tooltip.agro-hover { pointer-events:none; }
+</style><style>
+/* === Layer Container === */
+#agro-layer-container {
+  position:absolute; top:10px; right:10px; z-index:1400;
+  width:320px; background:#ffffff; border-radius:14px;
+  box-shadow:0 12px 34px rgba(2,6,23,.14); padding:10px; display:grid; gap:8px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto;
+}
+#agro-layer-container h3 { margin:0; font-size:14px; color:#0f172a; display:flex; align-items:center; justify-content:space-between; }
+#agro-layer-container .muted { color:#64748b; font-size:12px; }
+#agro-layer-list { max-height:240px; overflow:auto; display:grid; gap:6px; }
+.layer-row {
+  display:grid; grid-template-columns: 1fr auto; gap:6px; align-items:center;
+  background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:6px 8px;
+}
+.layer-row .name { font-size:12px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.layer-row .controls { display:flex; gap:6px; }
+.layer-btn {
+  appearance:none; border:0; border-radius:8px; padding:4px 8px; cursor:pointer;
+  background:#e5e7eb; color:#0f172a; font-size:12px;
+}
+.layer-btn.eye { width:30px; text-align:center; }
+.layer-btn:hover { filter:brightness(0.95); }
+#agro-layer-hint { font-size:11px; color:#64748b; }
+#agro-layer-toggle {
+  appearance:none; border:0; background:#0f172a; color:#fff; border-radius:999px; padding:4px 10px; font-size:11px; cursor:pointer;
+}
+/* Progress pill already exists; ensure on top */
+#agro-progress { z-index: 1600 !important; }
+</style><style>
+#agro-layer-fab {
+  position:absolute; left:10px; top:100px; z-index:1500;
+  width:38px; height:38px; border-radius:999px; background:#0f172a; color:#fff;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto;
+}
+#agro-layer-fab:hover { filter:brightness(1.1); }
+#agro-layer-container { position:fixed; left:60px; top:80px; display:none; cursor:default; }
+#agro-layer-container.dragging { opacity:.9; cursor:grabbing; }
+#agro-layer-container h3 { cursor:grab; }
+</style><style>
+/* Disable legacy layer UI if any leftover */
+#agro-layer-container, #agro-layer-fab { display: none !important; }
+</style><style>
+.leaflet-pane.agro-carta-pane { z-index: 10000 !important; }
+.leaflet-pane.agro-below-carta { z-index: 5000 !important; }
+</style><style>
+/* CARTA super topo e tudo o resto abaixo dela */
+.leaflet-pane.agro-carta-pane { z-index: 100000 !important; }
+.leaflet-pane.agro-below-carta { z-index: 5000 !important; }
+</style><style>
+/* CARTA super topo (abaixo apenas de popups/tooltip) */
+.leaflet-pane.agro-carta-pane { z-index: 2147483600 !important; }
+.leaflet-pane.leaflet-popup-pane, .leaflet-pane.leaflet-tooltip-pane { z-index: 2147483647 !important; }
+.leaflet-pane.agro-below-carta { z-index: 1000 !important; } /* shapes/KML etc. */
+</style>
+<style>
+/* === Camadas (FAB + Painel flutuante) === */
+/* (removido) #layerFab */
+#layerFab i{ font-size: 18px }
+#layerPanel{
+  position: absolute; left: 12px; bottom: 70px; z-index: 1201;
+  width: 320px; max-height: 65vh; overflow: auto;
+  background: #ffffffd8; backdrop-filter: blur(6px);
+  border: 1px solid #e5e7eb; border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(16,24,40,.14), 0 2px 6px rgba(16,24,40,.06);
+  display: none;
+}
+#layerPanel.dragging{ opacity: .96 }
+#layerPanel header{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding: 10px 12px; color: #fff;
+  background: linear-gradient(90deg,#2563eb,#1d4ed8);
+  border-top-left-radius: 14px; border-top-right-radius: 14px;
+  user-select: none; cursor: move;
+}
+#layerPanel .title{ font-weight: 900; letter-spacing: .2px }
+#layerPanel .body{ padding: 10px }
+.layer-item{
+  display:grid; grid-template-columns: 22px 1fr auto; align-items:center;
+  gap:8px; padding:8px 6px; border-bottom: 1px dashed #e5e7eb;
+}
+.layer-item .name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.layer-item .btns{ display:flex; gap:6px }
+.layer-item .btn{ border:1px solid #e5e7eb; background:#fff; padding:4px 8px; border-radius:8px; cursor:pointer; }
+.layer-item .btn:hover{ background:#f8fafc }
+.layer-item .tag{ font-size:11px; color:#64748b; margin-left:6px }
+.layer-footer{ display:flex; gap:8px; padding-top:8px }
+.layer-footer .btn{ flex:1; justify-content:center }
+@media (max-width: 600px){
+  #layerPanel{ width: min(92vw, 440px); left: 4vw; bottom: 80px }
+}
+
+
+/* ===  === */
+#layersCard{border:1px dashed #e5e7eb;border-radius:12px;background:#fafcff;padding:8px}
+#layerList{list-style:none;margin:6px 0 4px 0;padding:0;max-height:260px;overflow:auto}
+.layer-item{display:grid;grid-template-columns: 1fr auto 30px 30px;gap:6px;align-items:center;
+  background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;margin:6px 0}
+.layer-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.drag-handle{cursor:grab;color:#64748b}
+.layer-item.drag-over{outline:2px dashed #2563eb}
+.eye{width:30px;height:28px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer}
+.muted{color:#64748b;font-size:12px}
+
+
+
+
+</style>
+
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<script src="https://unpkg.com/leaflet-simple-map-screenshoter@0.8.1/dist/leaflet-simple-map-screenshoter.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.3.0/src/dom-to-image-more.min.js"></script>
 </head>
-
 <body>
-  <div id="map"></div>
-  <div id="loadingMessage">Carregando mapa…</div>
-  <div id="fatalError">Falha ao inicializar. Verifique sua internet e recarregue.</div>
+<div id="map"></div>
+<style>
+  #exportBar{
+   position: fixed; left: 50%; top: 12px; transform: translateX(-50%);
+   z-index: 2147483646; display:flex; gap:px; align-items:center;
+   background:; backdrop-filter: blur(4px);
+   padding:6px px; border-radius: 9px; box-shadow: 0 6px 24px rgba(0,0,0,.12);
+   font-size: 9px;
+  }
+  #exportBar button{ cursor:pointer; border:0; border-radius:12px; padding:5px 10px; font-weight:300; }
+  #exportBar .primary{ background:#0ea5e9; color:#fff; }
+  #exportBar .ghost{ background:#f3f4f6; }
+  .exporting #controls,
+  .exporting #shapeToolbar,
+  .exporting #hudStack,
+  .exporting #pixCard,
+  .exporting #toggleButton,
+  .exporting .leaflet-control-container,
+  .exporting .leaflet-popup,
+  .exporting .leaflet-tooltip { display:none !important; }
+  .exporting #map{ position:fixed !important; inset:0 !important; z-index:1 !important; }
+  @media print{
+    #exportBar, #controls, #shapeToolbar, #hudStack, #pixCard, #toggleButton, .leaflet-control-container { display:none !important; }
+    html, body, #map { height:100% !important; }
+    #map { position:fixed !important; inset:0 !important; }
+  }
+</style>
+<div id="exportBar">
+  <button class="primary" id="btnSavePngHiRes">💾</button>
+  <button class="ghost" id="btnPrintPage">🖨️</button>
+</div>
+<script>
+(function(){
+  function addExporting(on){
+    try{ document.body.classList[on?'add':'remove']('exporting'); }catch(_){}
+  }
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+  async function saveImage(){
+    addExporting(true);
+    await new Promise(r=>setTimeout(r,100));
+    try{
+      if(window.L && L.simpleMapScreenshoter && window.E && E.map){
+        if(!window.__SS__) window.__SS__=L.simpleMapScreenshoter({ hideElementsWithSelectors:['#exportBar','#controls','#shapeToolbar','#hudStack','#pixCard','#toggleButton','.leaflet-control-container'] });
+        if(!window.__SS__.map) window.__SS__.addTo(E.map);
+        const blob = await window.__SS__.takeScreen('blob', { mimeType:'image/png', quality:1, scale:3 });
+        downloadBlob(blob, 'agromap_'+Date.now()+'.png');
+      }else if(window.domtoimage){
+        const node = document.getElementById('map');
+        const w=node.offsetWidth, h=node.offsetHeight, s=3;
+        const blob = await window.domtoimage.toBlob(node, {width:w*s, height:h*s, style:{transform:'scale('+s+')', transformOrigin:'top left', width:w+'px', height:h+'px'}});
+        downloadBlob(blob, 'agromap_'+Date.now()+'.png');
+      }else{
+        alert('Exportador indisponível no navegador.');
+      }
+    }catch(e){
+      console.error(e);
+      alert('Falha ao exportar imagem. Possível bloqueio de CORS/tainted canvas (tiles externos). Tente imprimir como PDF.');
+    }finally{
+      addExporting(false);
+    }
+  }
+  function doPrint(){
+    addExporting(true);
+    setTimeout(()=>{ try{ window.print(); } finally { setTimeout(()=>addExporting(false), 250); } }, 80);
+  }
+  function wire(){
+    const b1=document.getElementById('btnSavePngHiRes');
+    const b2=document.getElementById('btnPrintPage');
+    if(!b1 || !b2){ console.warn('ExportBar não carregou.'); return; }
+    b1.addEventListener('click', saveImage);
+    b2.addEventListener('click', doPrint);
+    window.__AGRO_SAVE__ = saveImage;
+    window.__AGRO_PRINT__ = doPrint;
+  }
+  if(document.readyState==='complete' || document.readyState==='interactive'){ setTimeout(wire,0); }
+  else{ document.addEventListener('DOMContentLoaded', wire); }
+})();
+</script>
 
-  <aside id="controls" aria-label="Painel de controles">
-    <section class="section" id="sec-search">
-      <div class="section-title"><i class="fa-solid fa-magnifying-glass-location"></i> Buscar</div>
-      <div class="row">
-        <input id="searchBox" class="coord-input" placeholder="Endereço ou lat,lng (ex.: -5.35758,-49.130495)"/>
-        <button id="searchBtn" class="btn">Buscar</button>
-        <button id="gpsBtn" class="btn btn-ghost" title="Minha localização"><i class="fa-solid fa-location-crosshairs"></i></button>
-      </div>
-      <div id="searchResults" class="coord-small" style="margin-top:6px"></div>
-    </section>
+<!-- Camadas: botão discreto + painel flutuante -->
+<style>
+  #layersFab{
+    position:absolute; left:12px; top:50%; transform:translateY(-50%);
+    z-index:2147483650; width:42px; height:42px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    background:#0f172acc; color:#fff; border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 10px 28px rgba(0,0,0,.28); cursor:pointer;
+  }
+  #layersFab i{font-size:18px}
+  #layersPanel{
+    position:absolute; left:60px; top:50%; transform:translateY(-50%);
+    z-index:2147483651; width:300px; max-height:70vh; overflow:auto;
+    background:#ffffffee; backdrop-filter: blur(8px);
+    border:1px solid #e5e7eb; border-radius:14px; display:none;
+    box-shadow:0 14px 36px rgba(16,24,40,.2), 0 3px 10px rgba(16,24,40,.08);
+  }
+  #layersHeader{
+    position:sticky; top:0; background:linear-gradient(90deg,#2563eb,#1d4ed8);
+    color:#fff; padding:10px; display:flex; align-items:center; justify-content:space-between;
+    border-top-left-radius:14px; border-top-right-radius:14px; user-select:none; cursor:move;
+  }
+  #layersList{ padding:10px; }
+  .layer-item{
+    display:grid; grid-template-columns: 24px 1fr auto; align-items:center; gap:8px;
+    padding:8px; border:1px solid #e5e7eb; border-radius:10px; margin:6px 0; background:#fff;
+  }
+  .layer-item .name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .layer-item .kind{ font-size:11px; color:#64748b; margin-left:6px }
+  .chip{font-size:10px; padding:2px 6px; border-radius:999px; background:#eff6ff; border:1px solid #dbeafe; color:#1d4ed8; margin-left:6px}
+  .rowbtns{ display:flex; gap:6px; }
+  .rowbtns button{ border:1px solid #e5e7eb; background:#fff; border-radius:8px; padding:6px; cursor:pointer }
+  .rowbtns button:hover{ background:#f8fafc }
+  .eye{ color:#111827 }
+  .dragging{ opacity:.96 }
+</style>
 
-    <section class="section" id="sec-base">
-      <div class="section-title"><i class="fa-solid fa-layer-group"></i> Base</div>
-      <label class="small">Mapa base</label>
-      <select id="baseSelect">
-        <option value="osm">OpenStreetMap</option>
-        <option value="gStreets">Google Streets</option>
-        <option value="gHybrid">Google Hybrid</option>
-        <option value="esriSat">ESRI Satélite</option>
-        <option value="osmHOT">OSM Humanitarian</option>
-        <option value="openTopo">OpenTopoMap</option>
-        <option value="cartoLight">Carto Light</option>
-        <option value="cartoDark">Carto Dark</option>
-        <option value="cartoVoyager">Carto Voyager</option>
-        <option value="esriTopo">ESRI Topográfico</option>
-        <option value="esriStreets">ESRI Streets</option>
-        <option value="esriTerrain">ESRI Terrain</option>
-        <option value="esriHillshade">ESRI Hillshade (relevo)</option>
-        <option value="esriImageryClarity">ESRI Satélite (Clarity)</option>
-      </select>
-      <label class="small"><input type="checkbox" id="chkLabels" /> Rótulos (apenas satélite)</label>
-    </section>
 
-    <section class="section" id="sec-pdf">
-      <div class="section-title"><i class="fa-solid fa-file-pdf"></i> Cartas (PDF)</div>
-      <div class="row" style="gap:8px;">
-        <label class="btn btn-ghost" style="flex:1">
-          <i class="fas fa-file-pdf"></i> Carregar MPS
-          <input type="file" id="pdfInput" accept=".pdf" style="display:none" multiple/>
-        </label>
-      </div>
-      <div id="pdfControls" style="margin-top:6px;"></div>
-    </section>
 
-    <section class="section" id="sec-kml">
-      <div class="section-title"><i class="fa-solid fa-file-import"></i> KML</div>
-      <div class="row">
-        <label class="btn btn-ghost" style="flex:1">
-          <i class="fas fa-file-alt"></i> Carregar
-          <input type="file" id="kmlInput" accept=".kml,.kmz" multiple style="display:none"/>
-        </label>
-        <button class="btn btn-danger" id="clearKML" title="Limpar"><i class="fas fa-trash"></i></button>
-      </div>
-      <div id="kmlList" class="coord-small" style="margin-top:8px"></div>
-    </section>
 
-    <section class="section" id="sec-draw">
-      <div class="section-title"><i class="fa-solid fa-draw-polygon"></i> Formas</div>
-      <div class="row">
-        <button class="btn btn-ghost" id="btnPoly"   title="Polígono"><i class="fa-solid fa-draw-polygon"></i></button>
-        <button class="btn btn-ghost" id="btnRect"   title="Retângulo"><i class="fa-regular fa-square"></i></button>
-        <button class="btn btn-ghost" id="btnLine"   title="Linha"><i class="fa-solid fa-slash"></i></button>
-        <button class="btn btn-ghost" id="btnCircle" title="Círculo"><i class="fa-regular fa-circle"></i></button>
-        <button class="btn btn-ghost" id="btnMarker" title="Ponto"><i class="fa-solid fa-location-dot"></i></button>
-      </div>
-      <div class="row" style="margin-top:6px;">
-        <label class="btn btn-ghost" style="flex:1">
-          <i class="fas fa-file-upload"></i> Importar GeoJSON
-          <input type="file" id="geojsonInput" accept=".geojson,.json" style="display:none" multiple/>
-        </label>
-        <button id="exportGeoJSON" class="btn" style="flex:1"><i class="fas fa-download"></i> Salvar GeoJSON</button>
-      </div>
-    </section>
-
-    <section class="section" id="sec-project">
-      <div class="section-title"><i class="fa-solid fa-folder-tree"></i> Projeto</div>
-      <div class="row">
-        <button id="btnSaveProject" class="btn" style="flex:1"><i class="fa-solid fa-floppy-disk"></i> Salvar projeto</button>
-        <label class="btn btn-ghost" style="flex:1">
-          <i class="fa-solid fa-file-import"></i> Importar projeto
-          <input type="file" id="projectInput" accept=".agromap.json,application/json" style="display:none"/>
-        </label>
-      </div>
-    </section>
-  </aside>
-
-  <button id="toggleButton" title="Mostrar/ocultar painel"><i class="fas fa-sliders-h"></i></button>
-
-  <div class="leaflet-bottom leaflet-right">
-    <div id="hudStack">
-      <div id="rulerBox" class="leaflet-control hud-card">
-        <button id="rulerBtn" class="ruler-btn" title="Medir distâncias"><i class="fa-solid fa-ruler"></i> Régua</button>
-        <div class="ruler-value" id="rulerValue">0 m</div>
-        <button id="rulerClear" class="ruler-btn" title="Limpar medição"><i class="fa-solid fa-eraser"></i> Limpar</button>
-      </div>
-
-      <div id="coordBox" class="leaflet-control hud-card">
-        <div class="coord-row">
-          <button id="lockBtn" class="coord-btn" title="Fixar/Desfixar cruz"><i class="fa-solid fa-thumbtack"></i></button>
-          <div class="grow">
-            <div id="coordMain">—</div>
-            <div class="coord-small">Zoom: <span id="coordZoom">—</span> <span id="coordState"></span></div>
-          </div>
-          <button id="copyBtn" class="coord-btn" title='Copiar "lat,lng"'><i class="fa-solid fa-copy"></i></button>
-          <button id="openToolbarBtn" class="coord-btn" title="Abrir Edição e Seleção"><i class="fa-solid fa-pen"></i></button>
-        </div>
-      </div>
-    </div>
+<div id="loadingMessage">Carregando mapa…</div>
+<div id="fatalError">Falha ao inicializar. Verifique sua internet e recarregue.</div>
+<aside aria-label="Painel de controles" id="controls">
+<section class="section" id="sec-search">
+<div class="section-title"><i class="fa-solid fa-magnifying-glass-location"></i> Buscar</div>
+<div class="row">
+<input class="coord-input" id="searchBox" placeholder="Endereço ou lat,lng (ex.: -5.35758,-49.130495)"/>
+<button class="btn" id="searchBtn">Buscar</button>
+<button class="btn btn-ghost" id="gpsBtn" title="Minha localização"><i class="fa-solid fa-location-crosshairs"></i></button></div>
+<div class="coord-small" id="searchResults" style="margin-top:6px"></div>
+</section>
+<section class="section" id="sec-base">
+<div class="section-title"><i class="fa-solid fa-layer-group"></i> Base</div>
+<label class="small">Mapa base</label>
+<select id="baseSelect">
+<option value="osm">OpenStreetMap</option>
+<option value="gStreets">Google Streets</option>
+<option value="gHybrid">Google Hybrid</option>
+<option value="esriSat">ESRI Satélite</option>
+<option value="osmHOT">OSM Humanitarian</option>
+<option value="openTopo">OpenTopoMap</option>
+<option value="cartoLight">Carto Light</option>
+<option value="cartoDark">Carto Dark</option>
+<option value="cartoVoyager">Carto Voyager</option>
+<option value="esriTopo">ESRI Topográfico</option>
+<option value="esriStreets">ESRI Streets</option>
+<option value="esriTerrain">ESRI Terrain</option>
+<option value="esriHillshade">ESRI Hillshade (relevo)</option>
+<option value="esriImageryClarity">ESRI Satélite (Clarity)</option>
+</select>
+<label class="small"><input id="chkLabels" type="checkbox"/> Rótulos (apenas satélite)</label>
+</section>
+<section class="section" id="sec-pdf">
+<div class="section-title"><i class="fa-solid fa-file-pdf"></i> Cartas (PDF)</div>
+<div class="row" style="gap:8px;">
+<label class="btn btn-ghost" style="flex:1">
+<i class="fas fa-file-pdf"></i> Carregar MPS
+          <input accept=".pdf" id="pdfInput" multiple="" style="display:none" type="file"/></label>
+</div>
+<div id="pdfControls" style="margin-top:6px;"></div>
+</section>
+<section class="section" id="sec-kml">
+<div class="section-title"><i class="fa-solid fa-file-import"></i> KML</div>
+<div class="row">
+<label class="btn btn-ghost" style="flex:1">
+<i class="fas fa-file-alt"></i> Carregar
+          <input accept=".kml,.kmz" id="kmlInput" multiple="" style="display:none" type="file"/></label>
+<button class="btn btn-danger" id="clearKML" title="Limpar"><i class="fas fa-trash"></i></button></div>
+<div class="coord-small" id="kmlList" style="margin-top:8px"></div>
+</section>
+<section class="section" id="sec-shp">
+<div class="section-title"><i class="fa-solid fa-database"></i> Shapefile</div>
+<label class="small">Recomendado: um <b>.zip</b> contendo .shp + .dbf + .shx (+ .prj)</label>
+<div class="row">
+<label class="btn btn-ghost" style="flex:1">
+<i class="fa-solid fa-file-zipper"></i> Carregar SHP/ZIP
+          <input accept=".zip,.shp,.dbf,.shx,.prj" id="shpInput" multiple="" style="display:none" type="file"/></label>
+<button class="btn btn-danger" id="clearSHP" title="Limpar"><i class="fas fa-trash"></i></button></div>
+<div class="coord-small" id="shpList" style="margin-top:8px"></div>
+</section>
+<section class="section" id="sec-draw">
+<div class="section-title"><i class="fa-solid fa-draw-polygon"></i> Formas</div>
+<div class="row">
+<button class="btn btn-ghost" id="btnPoly" title="Polígono"><i class="fa-solid fa-draw-polygon"></i></button>
+<button class="btn btn-ghost" id="btnRect" title="Retângulo"><i class="fa-regular fa-square"></i></button>
+<button class="btn btn-ghost" id="btnLine" title="Linha"><i class="fa-solid fa-slash"></i></button>
+<button class="btn btn-ghost" id="btnCircle" title="Círculo"><i class="fa-regular fa-circle"></i></button>
+<button class="btn btn-ghost" id="btnMarker" title="Ponto"><i class="fa-solid fa-location-dot"></i></button></div>
+<div class="row" style="margin-top:6px;">
+<label class="btn btn-ghost" style="flex:1">
+<i class="fas fa-file-upload"></i> Importar GeoJSON
+          <input accept=".geojson,.json" id="geojsonInput" multiple="" style="display:none" type="file"/></label>
+<button class="btn" id="exportGeoJSON" style="flex:1"><i class="fas fa-download"></i> Salvar GeoJSON</button></div>
+</section>
+<section class="section" id="sec-project">
+<div class="section-title"><i class="fa-solid fa-folder-tree"></i> Projeto</div>
+<div class="row">
+<button class="btn" id="btnSaveProject" style="flex:1"><i class="fa-solid fa-floppy-disk"></i> Salvar projeto</button>
+<label class="btn btn-ghost" style="flex:1">
+<i class="fa-solid fa-file-import"></i> Importar projeto
+          <input accept=".agromap.json,application/json" id="projectInput" style="display:none" type="file"/></label>
+</div>
+</section>
   </div>
+</section>
 
-  <div id="pixCard" role="dialog" aria-live="polite" aria-label="Apoie a manutenção via PIX">
-    <header>
-      <span class="title"><i class="fa-solid fa-hand-holding-heart"></i> Apoie a manutenção do Site</span>
-      <button id="pixClose" title="Fechar"><i class="fa-solid fa-xmark"></i></button>
-    </header>
-    <div class="body">
-      <div class="chip"><i class="fa-solid fa-bolt"></i> PIX instantâneo</div>
-      <div class="qr" style="margin-top:30px"><div id="pixQrBox" aria-hidden="true"></div></div>
-      <div class="kvs">
-        <div class="kv"><div class="k">Ou use a chave</div><div class="v"><b>Chave Pix</b> — <em>Chave Aleatória</em></div></div>
-        <div class="kv"><div class="k">Nome</div><div class="v">Rafael Lima Oliveira</div></div>
-        <div class="kv"><div class="k">CPF</div><div class="v">•••.006.732-••</div></div>
-        <div class="kv"><div class="k">Banco</div><div class="v">260 - Nu Pagamentos S.A. - Instituição de Pagamento</div></div>
-        <div class="kv"><div class="k">Identificador</div><div class="v">EfGWzAFK6b</div></div>
-      </div>
-      <div id="pixActions">
-        <button id="btnCopyPayload" class="btn"><i class="fa-regular fa-copy"></i> Copiar código</button>
-        <button id="btnCopyKey" class="btn btn-ghost"><i class="fa-regular fa-copy"></i> Copiar chave</button>
-      </div>
-      <div class="coord-small" style="margin-top:1px;color:var(--muted)">Escaneie o QR ou use “Copiar código”.</div>
-    </div>
-  </div>
-
-  <div id="shapeToolbar" aria-live="polite">
-    <div id="dragHandle">
-      <div class="toolbar-title">Edição e Seleção</div>
-      <button id="btnCloseToolbar" title="Fechar">✖</button>
-    </div>
-
-    <div class="toolbar-body">
-      <div class="actions-bar">
-        <button class="btn" id="btnEdit"   title="Editar"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-danger" id="btnDelete" title="Excluir"><i class="fa-solid fa-trash"></i></button>
-        <button class="btn btn-save" id="btnSaveEdits" title="Salvar edição"><i class="fa-solid fa-floppy-disk"></i></button>
-      </div>
-
-      <div class="field">
-        <label class="small">Cor da borda</label>
-        <div class="color-row"><input type="color" id="strokeColor" value="#1f2937"/><div class="hex-badge" id="strokeHex">#1F2937</div></div>
-      </div>
-
-      <div class="field">
-        <label class="small">Cor de preenchimento</label>
-        <div class="color-row"><input type="color" id="fillColor" value="#60a5fa"/><div class="hex-badge" id="fillHex">#60A5FA</div></div>
-      </div>
-
-      <div class="field">
-        <label class="small">Espessura</label>
-        <div class="range-line"><input type="range" id="strokeWeight" min="1" max="8" value="2"/><output id="strokeWeightOut">2 px</output></div>
-      </div>
-
-      <div class="field">
-        <label class="small">Opacidade do preenchimento</label>
-        <div class="range-line"><input type="range" id="fillOpacity" min="0" max="1" step="0.05" value="0.25"/><output id="fillOpacityOut">0.25</output></div>
-      </div>
-
-      <div class="field">
-        <label class="small">Etiqueta (uma linha)</label>
-        <textarea id="labelText" rows="2" placeholder="Talhão / Safra / Obs."></textarea>
-      </div>
-
-      <div class="row">
-        <div style="flex:1">
-          <label class="small">Tamanho</label>
-          <div class="range-line"><input type="range" id="labelSize" min="10" max="28" value="12"/><output id="labelSizeOut">12 px</output></div>
-        </div>
-        <div style="width:110px">
-          <label class="small">Cor</label>
-          <div class="color-row"><input type="color" id="labelColor" value="#111827"/></div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label class="small">Fonte</label>
-        <select id="labelFont">
-          <option value="system-ui,-apple-system,Segoe UI,Roboto,Ubuntu">Padrão (sistema)</option>
-          <option value="Arial, Helvetica, sans-serif">Arial</option>
-          <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
-          <option value="'Roboto', 'Helvetica Neue', sans-serif">Roboto</option>
-          <option value="Georgia, 'Times New Roman', serif">Serif</option>
-          <option value="'Courier New', Courier, monospace">Monospace</option>
-        </select>
-      </div>
-
-      <div class="row" style="align-items:center">
-        <label class="small" style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="labelNoBg"/> Sem fundo</label>
-        <div style="margin-left:auto;width:110px">
-          <label class="small">Fundo</label>
-          <div class="color-row"><input type="color" id="labelBgColor" value="#ffffff"/></div>
-        </div>
-      </div>
-
-      <div class="row">
-        <button class="btn" id="btnApplyLabel" title="Criar/atualizar etiqueta"><i class="fa-solid fa-tag"></i> Aplicar/Atualizar</button>
-        <button class="btn btn-ghost" id="btnAddFreeLabel" title="Criar etiqueta sem selecionar"><i class="fa-regular fa-square-plus"></i> Etiqueta livre</button>
-      </div>
-
-      <div class="field">
-        <label class="small">Ícone para ponto</label>
-        <select id="markerIcon">
-          <option value="pin">📍 Pino</option><option value="tractor">🚜 Trator</option>
-          <option value="fazenda">🏡 Fazenda</option><option value="sementes">🌱 Sementes</option>
-          <option value="colheita">🌾 Colheita</option><option value="insumo">🧪 Insumo</option>
-          <option value="pulverizacao">🛩️ Pulverização</option><option value="praga">🐛 Praga</option>
-          <option value="besouro">🪲 Besouro</option><option value="gafanhoto">🦗 Gafanhoto</option>
-          <option value="fogo">🔥 Fogo</option><option value="abrigo">⛺ Abrigo</option>
-          <option value="agua">💧 Água</option><option value="alerta">⚠️ Alerta</option>
-          <option value="posto">🏣 Posto</option><option value="hospital">🏥 Saúde</option>
-          <option value="galpao">🏚️ Galpão</option><option value="arvore">🌳 Árvore</option>
-          <option value="pedra">🪨 Rocha</option>
-        </select>
-      </div>
-      <div class="row">
-        <button class="btn" id="btnAddPoint" title="Adicionar ponto"><i class="fa-solid fa-location-dot"></i> Adicionar ponto</button>
-        <button class="btn btn-ghost" id="btnApplyIcon" title="Aplicar no ponto selecionado"><i class="fa-solid fa-wand-magic-sparkles"></i> Aplicar no ponto</button>
-      </div>
-
-      <div id="extentInfo">
-        <div class="section-title" style="margin-top:2px;"><i class="fa-regular fa-compass"></i> Extent do mapa</div>
-        <div class="row" style="margin-bottom:6px;">
-          <select id="pdfSelect" style="flex:1" title="Carta ativa"></select>
-          <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="lockPdf"/> Travar</label>
-        </div>
-        <div class="grid">
-          <div class="tag">Oeste (Lon mín)</div><input id="extW"/>
-          <div class="tag">Sul (Lat mín)</div><input id="extS"/>
-          <div class="tag">Leste (Lon máx)</div><input id="extE"/>
-          <div class="tag">Norte (Lat máx)</div><input id="extN"/>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn btn-ghost" id="btnAdjustPdf" title="Arrastar carta"><i class="fa-solid fa-arrows-up-down-left-right"></i> Ajustar</button>
-          <button class="btn" id="btnApplyPdf" title="Aplicar bounds"><i class="fa-solid fa-check"></i> Aplicar</button>
-          <button class="btn btn-danger" id="btnCancelAdjust" title="Cancelar"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
+</aside>
+<button id="toggleButton" title="Mostrar/ocultar painel"><i class="fas fa-sliders-h"></i></button>
+<div class="leaflet-bottom leaflet-right">
+<div id="hudStack">
+<div class="leaflet-control hud-card" id="rulerBox">
+<button class="ruler-btn" id="rulerBtn" title="Medir distâncias"><i class="fa-solid fa-ruler"></i> Régua</button>
+<div class="ruler-value" id="rulerValue">0 m</div>
+<button class="ruler-btn" id="rulerClear" title="Limpar medição"><i class="fa-solid fa-eraser"></i> Limpar</button></div>
+<div class="leaflet-control hud-card" id="coordBox">
+<div class="coord-row">
+<button class="coord-btn" id="lockBtn" title="Fixar/Desfixar cruz"><i class="fa-solid fa-thumbtack"></i></button>
+<div class="grow">
+<div id="coordMain">—</div>
+<div class="coord-small">Zoom: <span id="coordZoom">—</span> <span id="coordState"></span></div></div>
+<button class="coord-btn" id="copyBtn" title='Copiar "lat,lng"'><i class="fa-solid fa-copy"></i></button>
+<button class="coord-btn" id="openToolbarBtn" title="Abrir Edição e Seleção"><i class="fa-solid fa-pen"></i></button></div>
+</div></div>
+</div>
+<div aria-label="Apoie a manutenção via PIX" aria-live="polite" id="pixCard" role="dialog">
+<header>
+<span class="title"><i class="fa-solid fa-hand-holding-heart"></i> Apoie a manutenção do Site</span>
+<button id="pixClose" title="Fechar"><i class="fa-solid fa-xmark"></i></button>
+</header>
+<div class="body">
+<div class="chip"><i class="fa-solid fa-bolt"></i> PIX instantâneo</div>
+<div class="qr" style="margin-top:30px"><div aria-hidden="true" id="pixQrBox"></div></div>
+<div class="kvs">
+<div class="kv"><div class="k">Ou use a chave</div><div class="v"><b>Chave Pix</b> — <em>Chave Aleatória</em></div></div>
+<div class="kv"><div class="k">Nome</div><div class="v">Rafael Lima Oliveira</div></div>
+<div class="kv"><div class="k">CPF</div><div class="v">•••.006.732-••</div></div>
+<div class="kv"><div class="k">Banco</div><div class="v">260 - Nu Pagamentos S.A. - Instituição de Pagamento</div></div>
+<div class="kv"><div class="k">Identificador</div><div class="v">EfGWzAFK6b</div></div>
+</div>
+<div id="pixActions">
+<button class="btn" id="btnCopyPayload"><i class="fa-regular fa-copy"></i> Copiar código</button>
+<button class="btn btn-ghost" id="btnCopyKey"><i class="fa-regular fa-copy"></i> Copiar chave</button></div>
+<div class="coord-small" style="margin-top:1px;color:var(--muted)">Escaneie o QR ou use “Copiar código”.</div></div>
+</div>
+<div aria-live="polite" id="shapeToolbar">
+<div id="dragHandle">
+<div class="toolbar-title">Edição e Seleção</div>
+<button id="btnCloseToolbar" title="Fechar">✖</button></div>
+<div class="toolbar-body">
+<div class="actions-bar">
+<button class="btn" id="btnEdit" title="Editar"><i class="fa-solid fa-pen"></i></button>
+<button class="btn btn-danger" id="btnDelete" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+<button class="btn btn-save" id="btnSaveEdits" title="Salvar edição"><i class="fa-solid fa-floppy-disk"></i></button></div>
+<div class="field">
+<label class="small">Cor da borda</label>
+<div class="color-row"><input id="strokeColor" type="color" value="#1f2937"/><div class="hex-badge" id="strokeHex">#1F2937</div></div>
+</div>
+<div class="field">
+<label class="small">Cor de preenchimento</label>
+<div class="color-row"><input id="fillColor" type="color" value="#60a5fa"/><div class="hex-badge" id="fillHex">#60A5FA</div></div>
+</div>
+<div class="field">
+<label class="small">Espessura</label>
+<div class="range-line"><input id="strokeWeight" max="8" min="1" type="range" value="2"/><output id="strokeWeightOut">2 px</output></div>
+</div>
+<div class="field">
+<label class="small">Opacidade do preenchimento</label>
+<div class="range-line"><input id="fillOpacity" max="1" min="0" step="0.05" type="range" value="0.25"/><output id="fillOpacityOut">0.25</output></div>
+</div>
+<div class="field">
+<label class="small">Etiqueta (uma linha)</label>
+<textarea id="labelText" placeholder="Talhão / Safra / Obs." rows="2"></textarea></div>
+<div class="row">
+<div style="flex:1">
+<label class="small">Tamanho</label>
+<div class="range-line"><input id="labelSize" max="28" min="10" type="range" value="12"/><output id="labelSizeOut">12 px</output></div>
+</div>
+<div style="width:110px">
+<label class="small">Cor</label>
+<div class="color-row"><input id="labelColor" type="color" value="#111827"/></div>
+</div></div>
+<div class="field">
+<label class="small">Fonte</label>
+<select id="labelFont">
+<option value="system-ui,-apple-system,Segoe UI,Roboto,Ubuntu">Padrão (sistema)</option>
+<option value="Arial, Helvetica, sans-serif">Arial</option>
+<option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+<option value="'Roboto', 'Helvetica Neue', sans-serif">Roboto</option>
+<option value="Georgia, 'Times New Roman', serif">Serif</option>
+<option value="'Courier New', Courier, monospace">Monospace</option>
+</select></div>
+<div class="row" style="align-items:center">
+<label class="small" style="margin:0;display:flex;gap:6px;align-items:center"><input id="labelNoBg" type="checkbox"/> Sem fundo</label>
+<div style="margin-left:auto;width:110px">
+<label class="small">Fundo</label>
+<div class="color-row"><input id="labelBgColor" type="color" value="#ffffff"/></div>
+</div></div>
+<div class="row">
+<button class="btn" id="btnApplyLabel" title="Criar/atualizar etiqueta"><i class="fa-solid fa-tag"></i> Aplicar/Atualizar</button>
+<button class="btn btn-ghost" id="btnAddFreeLabel" title="Criar etiqueta sem selecionar"><i class="fa-regular fa-square-plus"></i> Etiqueta livre</button></div>
+<div class="field">
+<label class="small">Ícone para ponto</label>
+<select id="markerIcon">
+<option value="pin">📍 Pino</option><option value="tractor">🚜 Trator</option>
+<option value="fazenda">🏡 Fazenda</option><option value="sementes">🌱 Sementes</option>
+<option value="colheita">🌾 Colheita</option><option value="insumo">🧪 Insumo</option>
+<option value="pulverizacao">🛩️ Pulverização</option><option value="praga">🐛 Praga</option>
+<option value="besouro">🪲 Besouro</option><option value="gafanhoto">🦗 Gafanhoto</option>
+<option value="fogo">🔥 Fogo</option><option value="abrigo">⛺ Abrigo</option>
+<option value="agua">💧 Água</option><option value="alerta">⚠️ Alerta</option>
+<option value="posto">🏣 Posto</option><option value="hospital">🏥 Saúde</option>
+<option value="galpao">🏚️ Galpão</option><option value="arvore">🌳 Árvore</option>
+<option value="pedra">🪨 Rocha</option>
+</select></div>
+<div class="row">
+<button class="btn" id="btnAddPoint" title="Adicionar ponto"><i class="fa-solid fa-location-dot"></i> Adicionar ponto</button>
+<button class="btn btn-ghost" id="btnApplyIcon" title="Aplicar no ponto selecionado"><i class="fa-solid fa-wand-magic-sparkles"></i> Aplicar no ponto</button></div>
+<div id="extentInfo">
+<div class="section-title" style="margin-top:2px;"><i class="fa-regular fa-compass"></i> Extent do mapa</div>
+<div class="row" style="margin-bottom:6px;">
+<select id="pdfSelect" style="flex:1" title="Carta ativa"></select>
+<label class="small" style="display:flex;align-items:center;gap:6px"><input id="lockPdf" type="checkbox"/> Travar</label></div>
+<div class="grid">
+<div class="tag">Oeste (Lon mín)</div><input id="extW"/>
+<div class="tag">Sul (Lat mín)</div><input id="extS"/>
+<div class="tag">Leste (Lon máx)</div><input id="extE"/>
+<div class="tag">Norte (Lat máx)</div><input id="extN"/></div>
+<div class="row" style="margin-top:8px;">
+<button class="btn btn-ghost" id="btnAdjustPdf" title="Arrastar carta"><i class="fa-solid fa-arrows-up-down-left-right"></i> Ajustar</button>
+<button class="btn" id="btnApplyPdf" title="Aplicar bounds"><i class="fa-solid fa-check"></i> Aplicar</button>
+<button class="btn btn-danger" id="btnCancelAdjust" title="Cancelar"><i class="fa-solid fa-xmark"></i></button></div>
+</div></div>
+</div>
+<script>
     window.addEventListener('load', function(){
       try{
         (()=>{ 'use strict';
@@ -498,6 +763,7 @@
       pdfLayers:{}, activePdf:null, lastPdfBounds:null,
       kmlTexts:[],
       kmlLayers:{},
+      shpLayers:{},
       routeLines:[], decorators:[], startMk:[], endMk:[],
       measure:{on:false,line:null,points:[],layer:L.layerGroup(),hasTemp:false},
       coord:{locked:false,fixed:null,cross:null}
@@ -509,6 +775,7 @@
       extW:el('extW'),extS:el('extS'),extE:el('extE'),extN:el('extN'),
       lockPdf:el('lockPdf'), btnAdjustPdf:el('btnAdjustPdf'), btnApplyPdf:el('btnApplyPdf'), btnCancelAdjust:el('btnCancelAdjust'),
       kmlInput:el('kmlInput'), clearKML:el('clearKML'),
+      shpInput:el('shpInput'), clearSHP:el('clearSHP'), shpList:el('shpList'),
       btnPoly:el('btnPoly'), btnRect:el('btnRect'), btnLine:el('btnLine'), btnCircle:el('btnCircle'), btnMarker:el('btnMarker'),
       strokeColor:el('strokeColor'), fillColor:el('fillColor'), strokeWeight:el('strokeWeight'), fillOpacity:el('fillOpacity'),
       strokeHex:el('strokeHex'), fillHex:el('fillHex'), strokeWeightOut:el('strokeWeightOut'), fillOpacityOut:el('fillOpacityOut'),
@@ -558,7 +825,6 @@
       const esriStreets=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — World Street Map'});
       const esriTerrain=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,attribution:'Tiles © Esri — Terrain Base'});
       const esriHillshade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — Hillshade'});
-      /* CORREÇÃO AQUI: URL com {x} (antes estava {x]) */
       const esriClarity=L.tileLayer('https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Tiles © Esri — Imagery (Clarity)'});
 
       const all=[osm,gStreets,gHybrid,esriSat,esriLbls,osmHOT,openTopo,cartoLight,cartoDark,cartoVoyager,esriTopo,esriStreets,esriTerrain,esriHillshade,esriClarity];
@@ -584,8 +850,16 @@
       }
       function init(){
         E.map=L.map('map',{maxZoom:23, zoomControl:false}).setView([-2.756,-48.930],12);
-        L.control.scale({imperial:false,position:'bottomleft'}).addTo(E.map);
+        L.control.scale({imperial:false,position:'bottomleft', pane:'agro-carta'}).addTo(E.map);
         osm.addTo(E.map);
+        // Pane exclusivo para cartas
+        (function(){
+          try{
+            const __pane = E.map.getPane('agro-carta') || E.map.createPane('agro-carta');
+            __pane.style.zIndex = '2147483600';
+            __pane.style.pointerEvents = 'auto';
+          }catch(e){ console.warn(e); }
+        })();
         UI.baseSelect.addEventListener('change',e=>setBase(e.target.value));
         UI.chkLabels.addEventListener('change',()=>setBase(UI.baseSelect.value));
         UI.togglePanel.addEventListener('click',()=>el('controls').classList.toggle('hidden'));
@@ -622,8 +896,7 @@
             <div style="margin:6px 0">
               <a href="#" data-lat="${it.lat}" data-lon="${it.lon}" data-bbox="${(it.boundingbox||[]).join('|')}">
                 <b>${shortName(it.display_name)}</b><br/><span class="coord-small">${it.display_name}</span>
-              </a>
-            </div>`).join('');
+              </a></div>`).join('');
         }catch{UI.searchResults.textContent='Falha na busca.'}
       }
       function bind(){
@@ -718,7 +991,7 @@
               const url=canvas.toDataURL();
 
               if(E.pdfLayers[name])E.map.removeLayer(E.pdfLayers[name]);
-              const ov=L.imageOverlay(url,bounds,{opacity:1}).addTo(E.map);
+              const ov=L.imageOverlay(url,bounds,{ pane:'agro-carta', opacity:1, pane:'agro-carta'}).addTo(E.map);
               ov._dataUrl=url; ov._opacity=1; E.pdfLayers[name]=ov; E.activePdf=name;
               addOpacityControl(name); refreshSelect();
 
@@ -735,8 +1008,8 @@
           const lyr=E.pdfLayers[E.activePdf]; if(!lyr||adjustRect)return;
           freeze(true);
           const b=lyr.getBounds();
-          adjustRect=L.rectangle(b,{color:'#2563eb',weight:2,fillOpacity:.08,fillColor:'#60a5fa',dashArray:'6,6',interactive:false}).addTo(E.map);
-          refRect   =L.rectangle(b,{color:'#ef4444',weight:2,fillOpacity:0,dashArray:'4,6',interactive:false}).addTo(E.map);
+          adjustRect=L.rectangle(b,{color:'#2563eb',weight:2,fillOpacity:.08,fillColor:'#60a5fa',dashArray:'6,6',interactive:false, pane:'agro-carta'}).addTo(E.map);
+          refRect   =L.rectangle(b,{color:'#ef4444',weight:2,fillOpacity:0,dashArray:'4,6',interactive:false, pane:'agro-carta'}).addTo(E.map);
           dragging=false; startBounds=b;
           const onDown=(ev)=>{dragging=true;startLatLng=ev.latlng};
           const onMove=(ev)=>{
@@ -790,8 +1063,7 @@
             <div style="display:flex;align-items:center;gap:6px;margin:4px 0">
               <input type="checkbox" id="${id}" ${visible?'checked':''} data-name="${escapeHTML(n)}" />
               <label for="${id}" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHTML(n)}">${escapeHTML(n)}</label>
-              <button class="btn btn-ghost" data-del="${escapeHTML(n)}" title="Remover camada"><i class="fas fa-trash"></i></button>
-            </div>`;
+              <button class="btn btn-ghost" data-del="${escapeHTML(n)}" title="Remover camada"><i class="fas fa-trash"></i></button></div>`;
         }).join('');
 
         UI.kmlList.querySelectorAll('input[type=checkbox]').forEach(chk=>{
@@ -894,13 +1166,13 @@
                   if(ft.geometry?.type==='LineString' || ft.geometry?.type==='MultiLineString'){
                     try{
                       E.routeLines.push(layer);
-                      const deco=L.polylineDecorator(layer,{patterns:[{offset:'3%',repeat:150,symbol:L.Symbol.arrowHead({pixelSize:10,polygon:true,pathOptions:{color:'#dd6b20',fillColor:'#dd6b20',fillOpacity:1,stroke:true}})}]}).addTo(E.map);
+                      const deco=L.polylineDecorator(layer,{patterns:[{offset:'3%',repeat:150,symbol:L.Symbol.arrowHead({pixelSize:10,polygon:true,pathOptions:{color:'#dd6b20',fillColor:'#dd6b20',fillOpacity:1,stroke:true}})}], pane:'agro-carta'}).addTo(E.map);
                       E.decorators.push(deco);
                       const coords = (ft.geometry.type==='LineString') ? ft.geometry.coordinates : (ft.geometry.coordinates?.[0]||[]);
                       if(coords?.length){
-                        const s=L.marker([coords[0][1],coords[0][0]],{icon:CONST.START_ICON}).addTo(E.map);
+                        const s=L.marker([coords[0][1],coords[0][0]],{icon:CONST.START_ICON, pane:'agro-carta'}).addTo(E.map);
                         const last=coords[coords.length-1];
-                        const e2=L.marker([last[1],last[0]],{icon:CONST.END_ICON}).addTo(E.map);
+                        const e2=L.marker([last[1],last[0]],{icon:CONST.END_ICON, pane:'agro-carta'}).addTo(E.map);
                         E.startMk.push(s); E.endMk.push(e2);
                         extendSafe(L.latLngBounds([s.getLatLng(),s.getLatLng()]));
                         extendSafe(L.latLngBounds([e2.getLatLng(),e2.getLatLng()]));
@@ -910,7 +1182,6 @@
                 }
               });
 
-              // Garante bounds mesmo em alguns Multi*
               try{
                 if(layerGroup && layerGroup.getLayers().length){
                   extendSafe(layerGroup.getBounds());
@@ -939,6 +1210,105 @@
       }
 
       return{bind,loadFromTextList,clear,setVisibility,removeLayer};
+    })();
+
+    /* SHAPEFILE – usando shpjs (.zip recomendado) */
+    const SHP=(()=>{
+      function clear(){
+        Object.values(E.shpLayers).forEach(arr=>{
+          arr.forEach(l=>{ try{ E.drawn.removeLayer(l); }catch{} });
+        });
+        E.shpLayers={};
+        if(UI.shpList) UI.shpList.innerHTML='';
+      }
+
+      function renderList(){
+        if(!UI.shpList) return;
+        const names=Object.keys(E.shpLayers);
+        if(!names.length){ UI.shpList.innerHTML=''; return; }
+        UI.shpList.innerHTML = names.map(n=>`
+          <div style="display:flex;align-items:center;gap:6px;margin:4px 0">
+            <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHTML(n)}">${escapeHTML(n)}</span>
+            <button class="btn btn-ghost" data-del-shp="${escapeHTML(n)}" title="Remover camada"><i class="fas fa-trash"></i></button></div>
+        `).join('');
+        UI.shpList.querySelectorAll('button[data-del-shp]').forEach(btn=>{
+          btn.addEventListener('click', e=>{
+            const name=e.currentTarget.getAttribute('data-del-shp');
+            removeLayer(name);
+          });
+        });
+      }
+
+      function removeLayer(name){
+        const arr=E.shpLayers[name]; if(!arr) return;
+        arr.forEach(l=>{ try{ E.drawn.removeLayer(l); }catch{} });
+        delete E.shpLayers[name];
+        renderList();
+      }
+
+      async function handleFile(f){
+        try{
+          const buf = await f.arrayBuffer();
+          let gj = null;
+          if(/\.zip$/i.test(f.name)){
+            gj = await shp(buf);
+          } else if(/\.shp$/i.test(f.name)){
+            // Tentativa limitada: apenas .shp sozinho não traz atributos; melhor usar .zip.
+            const geo = await shp.parseShp(buf);
+            gj = { type:'FeatureCollection', features: (geo||[]).map(g=>({type:'Feature',geometry:g,properties:{}})) };
+          } else {
+            alert('Use um .zip (SHP + DBF + SHX). Arquivo: '+f.name);
+            return;
+          }
+
+          const byName = (n)=>{ if(!E.shpLayers[n]) E.shpLayers[n]=[]; return E.shpLayers[n]; };
+          let bounds=null, any=false;
+
+          const pushFeatureCollection=(fc, name)=>{
+            const store = byName(name);
+            const layerGroup = L.geoJSON(fc,{
+              pointToLayer:(ft,latlng)=> L.marker(latlng,{draggable:true}),
+              style:()=>({color:'#0f766e',weight:2,fillColor:'#99f6e4',fillOpacity:.25})
+            });
+            layerGroup.eachLayer(l=>{
+              E.drawn.addLayer(l);
+              Draw.attach(l);
+              Draw.showInfo(l);
+              store.push(l);
+              any=true;
+            });
+            try{ if(layerGroup.getLayers().length) bounds = bounds? bounds.extend(layerGroup.getBounds()) : layerGroup.getBounds(); }catch{}
+          };
+
+          if(Array.isArray(gj)){ // shpjs pode retornar array de FCs
+            gj.forEach((fc,i)=> pushFeatureCollection(fc, f.name+(gj.length>1?` #${i+1}`:'')));
+          } else if(gj && gj.type==='FeatureCollection'){
+            pushFeatureCollection(gj, f.name);
+          } else if(gj && gj.type && gj.geometries){ // GeometryCollection
+            pushFeatureCollection({type:'FeatureCollection',features:gj.geometries.map(g=>({type:'Feature',geometry:g,properties:{}}))}, f.name);
+          }
+
+          renderList();
+          if(any && bounds){ E.map.fitBounds(bounds,{padding:[16,16]}); }
+        }catch(e){
+          console.error('Erro ao importar SHP', f.name, e);
+          alert('Falha ao importar Shapefile: '+f.name+' — '+(e?.message||e));
+        }
+      }
+
+      function bind(){
+        UI.shpInput.addEventListener('change', async(ev)=>{
+          const files=[...(ev.target.files||[])]; if(!files.length) return;
+          showLoading('Carregando Shapefile…');
+          try{
+            for(const f of files){ await handleFile(f); }
+          }finally{
+            hideLoading();
+          }
+        });
+        UI.clearSHP.addEventListener('click', clear);
+      }
+      return{bind,clear};
     })();
 
     /* Draw / Etiquetas / Emojis */
@@ -1032,28 +1402,24 @@
               <div><b>Perímetro:</b> ${fmtN(per_m,1)} m • ${fmtN(per_km,4)} km</div>
               <div><b>Vértices:</b> ${verts}</div>
               <div><b>Centro:</b> ${fmtN(centroid[1],6)}, ${fmtN(centroid[0],6)}</div>
-              <div><b>BBox:</b> ${typeof w_km==='number'?fmtN(w_km,3):w_km} km × ${typeof h_km==='number'?fmtN(h_km,3):h_km} km</div>
-            </div>`;
+              <div><b>BBox:</b> ${typeof w_km==='number'?fmtN(w_km,3):w_km} km × ${typeof h_km==='number'?fmtN(h_km,3):h_km} km</div></div>`;
           } else if(t==='LineString'||t==='MultiLineString'){
             const len_km=turf.length(gj,{units:'kilometers'}), len_m=len_km*1000, len_mi=turf.length(gj,{units:'miles'}), verts=countVerts(gj.geometry);
             html=`<div style="font-size:13px;line-height:1.35">
               <div><b>Comprimento:</b> ${fmtN(len_m,1)} m • ${fmtN(len_km,3)} km • ${fmtN(len_mi,3)} mi</div>
-              <div><b>Segmentos:</b> ${verts}</div>
-            </div>`;
+              <div><b>Segmentos:</b> ${verts}</div></div>`;
           } else if(layer instanceof L.Circle){
             const r=layer.getRadius(); const area_m2=Math.PI*r*r, area_ha=area_m2/10000, area_km2=area_m2/1e6, circ=2*Math.PI*r; const c=layer.getLatLng();
             html=`<div style="font-size:13px;line-height:1.35">
               <div><b>Raio:</b> ${fmtN(r,1)} m</div>
               <div><b>Circunferência:</b> ${fmtN(circ,1)} m</div>
               <div><b>Área:</b> ${fmtN(area_m2,0)} m² • ${fmtN(area_ha,4)} ha • ${fmtN(area_km2,4)} km²</div>
-              <div><b>Centro:</b> ${fmtN(c.lat,6)}, ${fmtN(c.lng,6)}</div>
-            </div>`;
+              <div><b>Centro:</b> ${fmtN(c.lat,6)}, ${fmtN(c.lng,6)}</div></div>`;
           } else if(gj.geometry.type==='Point' && !isLabel(layer)){
             const [lng,lat]=gj.geometry.coordinates;
             html=`<div style="font-size:13px;line-height:1.35">
               <div><b>Ponto:</b> ${fmtN(lat,6)}, ${fmtN(lng,6)}</div>
-              <div style="color:#6b7280">Dica: segure <b>Alt</b> e clique para copiar.</div>
-            </div>`;
+              <div style="color:#6b7280">Dica: segure <b>Alt</b> e clique para copiar.</div></div>`;
           }
           layer.bindPopup(html);
         }catch{}
@@ -1370,7 +1736,7 @@
       function setCross(latlng){
         if(!latlng){ if(E.coord.cross){E.map.removeLayer(E.coord.cross);E.coord.cross=null} return; }
         const html=`<div style="position:relative;width:22px;height:22px"><div style="position:absolute;left:10px;top:0;bottom:0;width:2px;background:#ef4444"></div><div style="position:absolute;top:10px;left:0;right:0;height:2px;background:#ef4444"></div></div>`;
-        if(!E.coord.cross){ E.coord.cross=L.marker(latlng,{icon:L.divIcon({html,iconSize:[22,22]}),interactive:false}).addTo(E.map); }
+        if(!E.coord.cross){ E.coord.cross=L.marker(latlng,{icon:L.divIcon({html,iconSize:[22,22]}),interactive:false, pane:'agro-carta'}).addTo(E.map); }
         else E.coord.cross.setLatLng(latlng);
       }
       function updateLabel(ll){ UI.coordMain.textContent=fmt(ll); UI.coordZoom.textContent=E.map.getZoom(); }
@@ -1474,7 +1840,7 @@
       const mm=(e)=>move(e.clientX,e.clientY);
       const mu=()=>{document.removeEventListener('mousemove',mm);document.removeEventListener('mouseup',mu);up()};
       handle.addEventListener('touchstart',e=>{const t=e.touches[0];down(t.clientX,t.clientY)},{passive:true});
-      handle.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY)},{passive:true}); /* CORRIGIDO */
+      handle.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY)},{passive:true});
       handle.addEventListener('touchend',up,{passive:true});
     }}))();
 
@@ -1514,7 +1880,7 @@
     async function loadProject(obj){
       try{
         if(!obj || obj.version!==1) throw new Error('Formato de projeto inválido ou versão não suportada.');
-        showLoading('Carregando projeto…'); /* ALERTA DE CARREGAMENTO DO PROJETO */
+        showLoading('Carregando projeto…');
         UI.baseSelect.value=obj.base?.name || 'osm';
         UI.chkLabels.checked=!!obj.base?.labels;
         Base.setBase(UI.baseSelect.value);
@@ -1556,7 +1922,6 @@
       }
     }
 
-    /* Conexões de botões do Projeto */
     (function bindProjectButtons(){
       UI.btnSaveProject?.addEventListener('click', downloadProject);
       UI.projectInput?.addEventListener('change', async (ev)=>{
@@ -1573,7 +1938,7 @@
     })();
 
     /* Boot */
-    Base.init(); Search.bind(); PDF.bind(); KML.bind(); Draw.bind(); IO.bind(); Coord.bind(); Ruler.bind();
+    Base.init(); Search.bind(); PDF.bind(); KML.bind(); SHP.bind(); Draw.bind(); IO.bind(); Coord.bind(); Ruler.bind();
 
         })();
       }catch(e){
@@ -1582,5 +1947,2444 @@
       }
     });
   </script>
+<div id="agro-status-overlay" style="position:fixed;right:10px;bottom:10px;z-index:2000;
+background:#0f172a;color:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);
+font:12px system-ui, -apple-system, Segoe UI, Roboto;max-width:320px;display:none"></div>
+<!-- === PATCH: Large-shape performance (worker + vectorgrid) === -->
+<script defer="">
+(function(){
+  // status helper
+  function showStatus(msg, ms){
+    const box = document.getElementById('agro-status-overlay');
+    if(!box) return;
+    box.textContent = msg;
+    box.style.display = 'block';
+    if(ms){ setTimeout(()=>{ box.style.display='none'; }, ms); }
+  }
+  window.__agroStatus = { show: showStatus };
+
+  // 1) Web Worker for SHP/ZIP parsing
+  const workerCode = `
+    self.onmessage = async (ev) => {
+      const { type, payload } = ev.data;
+      if(type !== 'parseShp') return;
+      try {
+        importScripts('https://unpkg.com/shpjs@latest/dist/shp.min.js');
+        let input = payload;
+        if(payload && payload.type === 'ab' && payload.data){
+          input = payload.data;
+        } else if (payload && payload.type === 'blob' && payload.data){
+          input = new Blob([new Uint8Array(payload.data)], { type: 'application/zip' });
+          input = await input.arrayBuffer();
+        }
+        const out = await shp(input);
+        function toFC(x){
+          if(!x) return {type:'FeatureCollection',features:[]};
+          if(x.type==='FeatureCollection') return x;
+          if(x.type && x.features) return x;
+          if(typeof x === 'object'){
+            const k = Object.keys(x)[0];
+            return toFC(x[k]);
+          }
+          return {type:'FeatureCollection',features:[]};
+        }
+        const fc = toFC(out);
+        postMessage({ ok:true, fc });
+      } catch(err){
+        postMessage({ ok:false, error: String(err) });
+      }
+    };
+  `;
+  const _workerURL = URL.createObjectURL(new Blob([workerCode], {type:'text/javascript'}));
+  const shpWorker = new Worker(_workerURL);
+  window.addEventListener('unload', ()=> { try{ URL.revokeObjectURL(_workerURL); }catch(_){}} , {once:true});
+
+  // Wrap global shp() para usar o worker quando input for ArrayBuffer/Blob
+  const shpOrig = window.shp;
+  if (typeof shpOrig === 'function') {
+    window.shp = function(input){
+      try{
+        if (input instanceof ArrayBuffer) {
+          return new Promise((resolve, reject)=>{
+            const onMsg = (ev)=>{
+              const d = ev.data;
+              if(d.ok){ shpWorker.removeEventListener('message', onMsg); resolve(d.fc); }
+              else { shpWorker.removeEventListener('message', onMsg); reject(new Error(d.error||'shp worker failed')); }
+            };
+            shpWorker.addEventListener('message', onMsg);
+            shpWorker.postMessage({ type:'parseShp', payload: { type:'ab', data: input } }, [input]);
+          });
+        }
+        if (typeof Blob !== 'undefined' && input instanceof Blob) {
+          return input.arrayBuffer().then(ab => new Promise((resolve, reject)=>{
+            const onMsg = (ev)=>{
+              const d = ev.data;
+              if(d.ok){ shpWorker.removeEventListener('message', onMsg); resolve(d.fc); }
+              else { shpWorker.removeEventListener('message', onMsg); reject(new Error(d.error||'shp worker failed')); }
+            };
+            shpWorker.addEventListener('message', onMsg);
+            shpWorker.postMessage({ type:'parseShp', payload: { type:'ab', data: ab } }, [ab]);
+          }));
+        }
+      }catch(e){ /* fallback */ }
+      return shpOrig.apply(this, arguments);
+    };
+  }
+
+  // 2) L.geoJSON -> VectorGrid para datasets grandes
+  if (window.L && !L.___vectorPatchApplied) {
+    const ORIGINAL_geoJSON = L.geoJSON;
+    function approxSize(obj){ try { return JSON.stringify(obj).length; } catch(e){ return 0; } }
+    L.geoJSON = function(geojson, options){
+      try{
+        const feats = (geojson && geojson.features) ? geojson.features.length : 0;
+        const bytes = approxSize(geojson);
+        const tooLarge = (feats > 4000) || (bytes > 12*1024*1024);
+        if (tooLarge && L.vectorGrid && L.vectorGrid.slicer) {
+          let simplified = geojson;
+          try {
+            if (typeof turf !== 'undefined' && geojson && geojson.type === 'FeatureCollection') {
+              const tol = (window.AGRO_SIMPLIFY_TOL || 0.00005);
+              simplified = turf.simplify(geojson, { tolerance: tol, highQuality: false });
+            }
+          } catch(_) {}
+          const vg = L.vectorGrid.slicer(simplified, {
+            rendererFactory: L.canvas.tile,
+            maxZoom: 22,
+            vectorTileLayerStyles: {
+              sliced: { weight: 1, opacity: 0.95, fillOpacity: 0.15 }
+            },
+            interactive: true
+          });
+          vg.getBounds = function(){
+            try { return ORIGINAL_geoJSON.call(L, simplified).getBounds(); }
+            catch(e){ return L.latLngBounds(); }
+          };
+          L.___vectorPatchApplied = true;
+          return vg;
+        }
+      }catch(e){ /* no-op */ }
+      return ORIGINAL_geoJSON.apply(this, arguments);
+    };
+  }
+})();
+</script>
+<div id="agro-progress" style="position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:3000;
+background:#111827cc;color:#fff;border-radius:999px;padding:6px 12px;display:none;box-shadow:0 8px 30px rgba(0,0,0,.25);
+font:12px system-ui,-apple-system,Segoe UI,Roboto">
+<span id="agro-progress-text">Carregando…</span>
+<span style="display:inline-block;width:120px;height:6px;background:#374151;border-radius:999px;margin-left:8px;vertical-align:middle;overflow:hidden">
+<span id="agro-progress-bar" style="display:block;width:0%;height:100%;background:linear-gradient(90deg,#60a5fa,#22d3ee);transition:width .25s"></span>
+</span></div>
+<script defer="">
+(function(){
+  // ----------------- UTIL: PROGRESS BAR -----------------
+  const $prog = document.getElementById('agro-progress');
+  const $progText = document.getElementById('agro-progress-text');
+  const $progBar = document.getElementById('agro-progress-bar');
+  function progressShow(msg){ if(!$prog) return; $progText.textContent = msg||'Carregando…'; $prog.style.display='inline-block'; $progBar.style.width='10%'; }
+  function progressTick(p){ if(!$progBar) return; const v = Math.max(10, Math.min(100, Math.round(p))); $progBar.style.width = v+'%'; }
+  function progressHide(){ if(!$prog) return; $prog.style.display='none'; $progBar.style.width='0%'; }
+  window.__agroProgress = { show:progressShow, tick:progressTick, hide:progressHide };
+
+  // ----------------- LAYER MANAGER (limpeza total) -----------------
+  const REG = new Map(); // id -> {layer, type, name}
+  let COUNTER = 0;
+
+  function genId(){ return 'agro-'+ (++COUNTER); }
+
+  function deepRemoveLayer(layer, map){
+    try{
+      if(!layer) return;
+      if(layer.clearLayers) { layer.clearLayers(); }
+      if(layer.remove) { layer.remove(); }
+      if(map && map.removeLayer) { try { map.removeLayer(layer); } catch(_){} }
+      if(layer.off) { layer.off(); }
+      if(layer.getPane && layer.getPane()) { /* let Leaflet handle DOM cleanup */ }
+    }catch(e){}
+  }
+
+  function registerLayer(layer, type, name){
+    const id = genId();
+    REG.set(id, { layer, type:type||'unknown', name:name||('Layer '+id), visible:true });
+    if(layer && layer.on){
+      // keep registry in sync if removed externally
+      layer.on('remove', ()=>{
+        const it = REG.get(id);
+        if(it) it.visible = false;
+      });
+    }
+    return id;
+  }
+
+  function removeById(id, map){
+    const it = REG.get(id);
+    if(!it) return;
+    deepRemoveLayer(it.layer, map||window.__leafletMap);
+    REG.delete(id);
+    // try to force gc-friendly cleanup
+    it.layer = null;
+  }
+
+  function removeAll(map){
+    Array.from(REG.keys()).forEach(id => removeById(id, map));
+  }
+
+  window.AGRO_LAYERS = { registerLayer, removeById, removeAll, _REG:REG };
+
+  // Patch Map.removeLayer to ensure full cleanup for managed layers
+  if(L && L.Map && !L.Map.__agroRemovePatched){
+    const origRemove = L.Map.prototype.removeLayer;
+    L.Map.prototype.removeLayer = function(layer){
+      // find in registry
+      for(const [id, entry] of REG){
+        if(entry.layer === layer){
+          deepRemoveLayer(layer, this);
+          REG.delete(id);
+          return this;
+        }
+      }
+      return origRemove.call(this, layer);
+    };
+    L.Map.__agroRemovePatched = true;
+  }
+
+  // ----------------- FILE INPUT RESILIENCE -----------------
+  // Limpar <input type=file> após importação para permitir reimportar o mesmo arquivo várias vezes
+  document.addEventListener('change', (e)=>{
+    const el = e.target;
+    if(el && el.tagName==='INPUT' && el.type==='file'){
+      setTimeout(()=>{ try{ el.value = ''; }catch(_){ } }, 1000);
+    }
+  }, true);
+
+  // ----------------- SHAPEFILE VIA WORKER (com quantização opcional) -----------------
+  // Reaproveita worker anterior se existir
+  let shpWorker = window.__agroShpWorker;
+  if(!shpWorker){
+    const workerCode = `
+      self.onmessage = async (ev) => {
+        const { type, payload, quant } = ev.data;
+        if(type !== 'parseShp') return;
+        try {
+          importScripts('https://unpkg.com/shpjs@latest/dist/shp.min.js');
+          let input = payload;
+          if(payload && payload.type==='ab' && payload.data){ input = payload.data; }
+          const out = await shp(input);
+          function toFC(x){
+            if(!x) return {type:'FeatureCollection',features:[]};
+            if(x.type==='FeatureCollection') return x;
+            if(x.type && x.features) return x;
+            if(typeof x === 'object'){ const k=Object.keys(x)[0]; return toFC(x[k]); }
+            return {type:'FeatureCollection',features:[]};
+          }
+          let fc = toFC(out);
+
+          // quantização leve (reduz bytes em ~30-60%)
+          function qCoord(v,q){ return Math.round(v/q)*q; }
+          function qGeom(g,q){
+            const t=g.type, c=g.coordinates;
+            if(!t||!c) return g;
+            const qp=(p)=>[qCoord(p[0],q),qCoord(p[1],q)];
+            if(t==='Point') return {type:t,coordinates:qp(c)};
+            if(t==='MultiPoint'||t==='LineString') return {type:t,coordinates:c.map(qp)};
+            if(t==='MultiLineString'||t==='Polygon') return {type:t,coordinates:c.map(r=>r.map(qp))};
+            if(t==='MultiPolygon') return {type:t,coordinates:c.map(poly=>poly.map(r=>r.map(qp)))};
+            return g;
+          }
+          if(quant && fc && fc.features){
+            const q = quant; // e.g., 1e-5 ~ ~1m
+            fc = { type:'FeatureCollection', features: fc.features.map(f=>({ type:'Feature', properties:f.properties||{}, geometry:qGeom(f.geometry,q) })) };
+          }
+
+          postMessage({ ok:true, fc, feats: (fc.features||[]).length });
+        } catch(err){
+          postMessage({ ok:false, error:String(err) });
+        }
+      };
+    `;
+    const url = URL.createObjectURL(new Blob([workerCode], {type:'text/javascript'}));
+    shpWorker = new Worker(url);
+    window.__agroShpWorker = shpWorker;
+    window.addEventListener('unload', ()=>{ try{ URL.revokeObjectURL(url); }catch(_){ } }, { once:true });
+  }
+
+  // Monkey-patch global shp() para usar worker com progress UI
+  const shpOrig = window.shp;
+  if (typeof shpOrig === 'function' && !window.__agroShpWrapped){
+    window.__agroShpWrapped = true;
+    window.shp = function(input){
+      try{
+        if (input instanceof ArrayBuffer) {
+          __agroProgress.show('Convertendo SHP…');
+          return new Promise((resolve, reject)=>{
+            const onMsg = (ev)=>{
+              const d = ev.data;
+              if(d.ok){ shpWorker.removeEventListener('message', onMsg); __agroProgress.hide(); resolve(d.fc); }
+              else { shpWorker.removeEventListener('message', onMsg); __agroProgress.hide(); reject(new Error(d.error||'shp worker failed')); }
+            };
+            shpWorker.addEventListener('message', onMsg);
+            // quantização automática p/ arquivos muito grandes
+            shpWorker.postMessage({ type:'parseShp', payload:{ type:'ab', data: input }, quant: 1e-5 }, [input]);
+          });
+        }
+        if (typeof Blob !== 'undefined' && input instanceof Blob) {
+          __agroProgress.show('Lendo SHP…');
+          return input.arrayBuffer().then(ab => new Promise((resolve, reject)=>{
+            const onMsg = (ev)=>{
+              const d = ev.data;
+              if(d.ok){ shpWorker.removeEventListener('message', onMsg); __agroProgress.hide(); resolve(d.fc); }
+              else { shpWorker.removeEventListener('message', onMsg); __agroProgress.hide(); reject(new Error(d.error||'shp worker failed')); }
+            };
+            shpWorker.addEventListener('message', onMsg);
+            shpWorker.postMessage({ type:'parseShp', payload:{ type:'ab', data: ab }, quant: 1e-5 }, [ab]);
+          }));
+        }
+      }catch(e){ /* fallback */ }
+      return shpOrig.apply(this, arguments);
+    };
+  }
+
+  // ----------------- POPUP com PIN e hover-only quando desfixado -----------------
+  let pinned = false;
+  function popupHtmlFromProps(props){
+    const rows = Object.keys(props||{}).slice(0,50).map(k=>`<tr><td><b>${k}</b></td><td>${String(props[k])}</td></tr>`).join('');
+    const table = rows ? `<table>${rows}</table>` : '<em>Sem atributos</em>';
+    return `<button class="agro-pin" title="Fixar/Desfixar" onclick="(function(btn){ window.__agroTogglePin(btn); })(this)">📌</button>` + table;
+  }
+  window.__agroTogglePin = function(btn){
+    pinned = !pinned;
+    if(btn) btn.textContent = pinned ? '📌' : '📌';
+  };
+
+  function attachHoverPopupsToLayer(layer){
+    if(!layer) return;
+    // GeoJSON layers
+    if(layer.eachLayer){
+      layer.eachLayer(function(ch){
+        if(ch && ch.bindPopup){
+          const props = ch.feature ? ch.feature.properties||{} : {};
+          ch.bindPopup(popupHtmlFromProps(props));
+          ch.on('mouseover', function(ev){
+            if(!pinned){ ch.openPopup(ev.latlng); }
+          });
+          ch.on('mouseout', function(){
+            if(!pinned){ try{ ch.closePopup(); }catch(_){ } }
+          });
+        }
+      });
+    }
+    // VectorGrid
+    if(layer.on && layer._layers === undefined){ // heurística: vectorgrid não tem eachLayer tradicional
+      layer.on('mouseover', function(e){
+        const p = e.layer && e.layer.properties ? e.layer.properties : {};
+        const html = popupHtmlFromProps(p);
+        if(!pinned){ L.popup().setLatLng(e.latlng).setContent(html).openOn(window.__leafletMap || layer._map); }
+      });
+      layer.on('mouseout', function(){
+        if(!pinned){ try{ (window.__leafletMap || layer._map).closePopup(); }catch(_){ } }
+      });
+      layer.on('click', function(e){
+        const p = e.layer && e.layer.properties ? e.layer.properties : {};
+        const html = popupHtmlFromProps(p);
+        L.popup().setLatLng(e.latlng).setContent(html).openOn(window.__leafletMap || layer._map);
+      });
+    }
+  }
+
+  // ----------------- L.geoJSON auto-VectorGrid + registry + faster add -----------------
+  if (window.L && !L.___vectorPatchApplied2) {
+    const ORIGINAL_geoJSON = L.geoJSON;
+    function approxSize(obj){ try { return JSON.stringify(obj).length; } catch(e){ return 0; } }
+    L.geoJSON = function(geojson, options){
+      try{
+        const feats = (geojson && geojson.features) ? geojson.features.length : 0;
+        const bytes = approxSize(geojson);
+        const tooLarge = (feats > 4000) || (bytes > 12*1024*1024);
+
+        if (tooLarge && L.vectorGrid && L.vectorGrid.slicer) {
+          let simplified = geojson;
+          try {
+            if (typeof turf !== 'undefined' && geojson && geojson.type === 'FeatureCollection') {
+              const tol = (window.AGRO_SIMPLIFY_TOL || 0.00005);
+              simplified = turf.simplify(geojson, { tolerance: tol, highQuality: false });
+            }
+          } catch(_) {}
+
+          const vg = L.vectorGrid.slicer(simplified, {
+            rendererFactory: L.canvas.tile,
+            maxZoom: 22,
+            vectorTileLayerStyles: { sliced: { weight: 1, opacity: 0.95, fillOpacity: 0.15 } },
+            interactive: true
+          });
+          // fitBounds compat
+          vg.getBounds = function(){
+            try { return ORIGINAL_geoJSON.call(L, simplified).getBounds(); }
+            catch(e){ return L.latLngBounds(); }
+          };
+
+          // register / attach hover popups
+          const id = registerLayer(vg, 'vectorgrid', 'Importado');
+          setTimeout(()=> attachHoverPopupsToLayer(vg), 0);
+          L.___vectorPatchApplied2 = true;
+          return vg;
+        }
+
+        // Small/medium: create geojson layer but add features in chunks for speed
+        const layer = ORIGINAL_geoJSON.call(L, { type:'FeatureCollection', features:[] }, options||{});
+        const featsArr = (geojson && geojson.features) ? geojson.features.slice() : [];
+        const chunk = 1000;
+        function addChunk(){
+          const part = featsArr.splice(0, chunk);
+          if(part.length){
+            try { layer.addData({ type:'FeatureCollection', features: part }); } catch(e){ console.warn(e); }
+            if(typeof requestIdleCallback === 'function'){ requestIdleCallback(addChunk); }
+            else { setTimeout(addChunk, 0); }
+          } else {
+            // when finished
+            try { attachHoverPopupsToLayer(layer); } catch(_){}
+          }
+        }
+        addChunk();
+
+        const id = registerLayer(layer, 'geojson', 'Importado');
+        return layer;
+      }catch(e){
+        return ORIGINAL_geoJSON.apply(this, arguments);
+      }
+    };
+  }
+
+  // ----------------- KML/KMZ visibility and unlimited re-import -----------------
+  // A estratégia acima (registry + file reset) já permite reimportar ilimitado.
+  // Para garantir, esvazie popups ao remover:
+  document.addEventListener('click', (e)=>{
+    // Se sua UI tiver um botão "Excluir" que chama map.removeLayer(...),
+    // nosso patch de Map.removeLayer garante limpeza total.
+  }, true);
+
+  // Expor o mapa global se existir para popups
+  // Tentativa de descobrir o mapa padrão
+  setTimeout(()=>{
+    try{
+      for(const k in window){
+        if(window[k] && window[k] instanceof L.Map){ window.__leafletMap = window[k]; break; }
+      }
+    }catch(_){}
+  }, 500);
+
+})();</script>
+<script defer="">
+(function(){
+  // Ensure we have registry from previous patch
+  const REG = (window.AGRO_LAYERS && window.AGRO_LAYERS._REG) ? window.AGRO_LAYERS._REG : new Map();
+  const API = window.AGRO_LAYERS || (window.AGRO_LAYERS = { registerLayer(){}, removeById(){}, removeAll(){}, _REG: REG });
+  const mapRef = ()=> window.__leafletMap;
+
+  // Maintain layer ORDER (top of list = on top visually)
+  let ORDER = [];
+
+  function ensureOrderEntry(id){
+    if(!ORDER.includes(id)) ORDER.unshift(id); // newest on top
+  }
+
+  // Hook into registerLayer to track order
+  const _origRegister = API.registerLayer || function(layer, type, name){ return null; };
+  API.registerLayer = function(layer, type, name){
+    const id = _origRegister(layer, type, name);
+    ensureOrderEntry(id);
+    syncLayerUI();
+    return id;
+  };
+
+  // UI Elements
+  const $list = document.getElementById('agro-layer-list');
+  const $toggle = document.getElementById('agro-layer-toggle');
+  const $container = document.getElementById('agro-layer-container');
+
+  $toggle.addEventListener('click', ()=>{
+    const vis = $list.style.display !== 'none';
+    $list.style.display = vis ? 'none' : 'grid';
+    document.getElementById('agro-layer-hint').style.display = vis ? 'none' : 'block';
+    $toggle.textContent = vis ? 'Mostrar' : 'Ocultar';
+  });
+
+  function rebuildZOrder(){
+    // Re-add layers in ORDER sequence so the last added sits on top
+    const map = mapRef();
+    if(!map) return;
+    const items = ORDER.map(id => [id, REG.get(id)]).filter(([,e])=> e && e.layer);
+    // Remove all first (keeping REG), then add back in ascending order
+    items.forEach(([,e])=> { try{ map.removeLayer(e.layer);}catch(_){}});
+    items.forEach(([,e])=> { try{ e.layer.addTo(map); }catch(_){}});
+  }
+
+  function rowTemplate(id, entry, index){
+    const name = entry?.name || ('Layer '+id);
+    const visible = entry?.visible !== false;
+    return `<div class="layer-row" data-id="${id}">
+      <div class="name" title="${name}">${name}</div>
+      <div class="controls">
+        <button class="layer-btn eye" data-eye title="${visible?'Ocultar':'Mostrar'}">${visible?'👁':'🚫'}</button>
+        <button class="layer-btn" data-up title="Subir">↑</button>
+        <button class="layer-btn" data-down title="Descer">↓</button>
+        <button class="layer-btn" data-del title="Excluir">✖</button></div>
+    </div>`;
+  }
+
+  function syncLayerUI(){
+    if(!$list) return;
+    // purge missing ids from ORDER
+    ORDER = ORDER.filter(id => REG.has(id));
+    // render list
+    $list.innerHTML = ORDER.map((id,i)=> rowTemplate(id, REG.get(id), i)).join('');
+    // attach events
+    $list.querySelectorAll('.layer-row').forEach(row => {
+      const id = row.getAttribute('data-id');
+      const entry = REG.get(id);
+      if(!entry) return;
+
+      row.querySelector('[data-eye]').addEventListener('click', ()=>{
+        const map = mapRef();
+        if(!map) return;
+        entry.visible = !entry.visible;
+        try {
+          if(entry.visible){ entry.layer.addTo(map); }
+          else { map.removeLayer(entry.layer); }
+        } catch(_){}
+        syncLayerUI();
+      });
+      row.querySelector('[data-up]').addEventListener('click', ()=>{
+        const idx = ORDER.indexOf(id);
+        if(idx>0){ const tmp=ORDER[idx-1]; ORDER[idx-1]=ORDER[idx]; ORDER[idx]=tmp; rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI(); }
+      });
+      row.querySelector('[data-down]').addEventListener('click', ()=>{
+        const idx = ORDER.indexOf(id);
+        if(idx>=0 && idx<ORDER.length-1){ const tmp=ORDER[idx+1]; ORDER[idx+1]=ORDER[idx]; ORDER[idx]=tmp; rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI(); }
+      });
+      row.querySelector('[data-del]').addEventListener('click', ()=>{
+        const map = mapRef();
+        try { window.AGRO_LAYERS.removeById(id, map); } catch(_){}
+        ORDER = ORDER.filter(x=>x!==id);
+        syncLayerUI();
+      });
+    });
+  }
+
+  // Expose a helper to register external layers with names
+  window.AGRO_LAYERS_UI = {
+    registerNamed(layer, type, name){
+      const id = API.registerLayer(layer, type, name);
+      ensureOrderEntry(id);
+      syncLayerUI();
+      return id;
+    },
+    sync: syncLayerUI
+  };
+
+  // Initial sync when map is discovered
+  setTimeout(syncLayerUI, 800);
+
+  // -------- 7MB limit for SHP/ZIP only (KML/KMZ ilimitado) --------
+  // Intercept "file" input changes and block SHP/ZIP > 7MB
+  document.addEventListener('change', function(ev){
+    const el = ev.target;
+    if(!el || el.tagName!=='INPUT' || el.type!=='file') return;
+    const f = el.files && el.files[0];
+    if(!f) return;
+    const name = (f.name||'').toLowerCase();
+    const isShp = name.endsWith('.shp');
+    const isZip = name.endsWith('.zip');
+    if((isShp || isZip) && f.size > 7*1024*1024){
+      ev.stopImmediatePropagation();
+      ev.preventDefault();
+      if(window.__agroProgress){ window.__agroProgress.hide(); }
+      if(window.__agroStatus && window.__agroStatus.show){
+        window.__agroStatus.show('Shapefile acima do limite de 7MB. Use KML/KMZ/GeoJSON ou reduza/simplifique o SHP.', 5000);
+      } else {
+        alert('Shapefile acima do limite de 7MB. Use KML/KMZ/GeoJSON ou reduza/simplifique o SHP.');
+      }
+      try { el.value=''; }catch(_){}
+    } else {
+      // show a progress hint for any import
+      if(window.__agroProgress){ window.__agroProgress.show('Importando…'); setTimeout(()=>{ if(window.__agroProgress) window.__agroProgress.tick(60); }, 200); }
+    }
+  }, true);
+
+  // When layers finish loading (heuristics): listen to Leaflet layeradd
+  document.addEventListener('DOMContentLoaded', function(){
+    try {
+      const m = mapRef();
+      if(!m) return;
+      m.on('layeradd', function(){
+        if(window.__agroProgress){ setTimeout(()=> window.__agroProgress.hide(), 500); }
+        if(window.AGRO_LAYERS_UI) window.AGRO_LAYERS_UI.sync();
+      });
+    } catch(_){}
+  });
+})();
+</script>
+<script defer="">
+(function(){
+  const $fab = document.getElementById('agro-layer-fab');
+  const $panel = document.getElementById('agro-layer-container');
+  const $list = document.getElementById('agro-layer-list');
+  const $hint = document.getElementById('agro-layer-hint');
+  const REG = (window.AGRO_LAYERS && window.AGRO_LAYERS._REG) ? window.AGRO_LAYERS._REG : new Map();
+  const API = window.AGRO_LAYERS || (window.AGRO_LAYERS = { registerLayer(){}, removeById(){}, removeAll(){}, _REG: REG });
+  let ORDER = window.__AGRO_ORDER || [];
+  window.__AGRO_ORDER = ORDER;
+
+  // --- Toggle by FAB (left icon) ---
+  if($fab){
+    $fab.addEventListener('click', ()=>{
+      if(!$panel) return;
+      const vis = $panel.style.display !== 'none';
+      $panel.style.display = vis ? 'none' : 'grid';
+    });
+  }
+
+  // --- Draggable panel ---
+  if($panel){
+    const header = $panel.querySelector('h3');
+    let dragging=false, sx=0, sy=0, ox=0, oy=0;
+    function onDown(e){
+      dragging=true; $panel.classList.add('dragging');
+      const r = $panel.getBoundingClientRect(); ox=r.left; oy=r.top;
+      sx = e.clientX; sy = e.clientY;
+      e.preventDefault();
+    }
+    function onMove(e){
+      if(!dragging) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      $panel.style.left = (ox+dx)+'px';
+      $panel.style.top = (oy+dy)+'px';
+    }
+    function onUp(){ dragging=false; $panel.classList.remove('dragging'); }
+    if(header){
+      header.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+  }
+
+  // --- Ensure ORDER contains any registered IDs; new layers go on top ---
+  function ensureOrderEntry(id){
+    if(!ORDER.includes(id)) ORDER.unshift(id);
+  }
+  const _origRegister = API.registerLayer || function(layer, type, name){ return null; };
+  API.registerLayer = function(layer, type, name){
+    const id = _origRegister(layer, type, name);
+    ensureOrderEntry(id);
+    rebuildZOrder();
+    syncLayerUI();
+    return id;
+  };
+
+  // --- Auto-register any external layer added to the map (KML/KMZ/Tile etc.) ---
+  function mapRef(){ return window.__leafletMap; }
+  setTimeout(()=>{
+    const m = mapRef();
+    if(!m) return;
+    m.on('layeradd', function(ev){
+      const lyr = ev.layer;
+      // If this layer is not in REG, register it with a generic name
+      const already = Array.from(REG.values()).some(e => e.layer === lyr);
+      if(!already){
+        const name = (lyr._url ? (lyr._url.split('?')[0].split('/').slice(-2).join('/') || 'Mapa')
+                    : (lyr.options && lyr.options.name) || 'Camada');
+        if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.registerNamed){
+          window.AGRO_LAYERS_UI.registerNamed(lyr, lyr instanceof L.TileLayer ? 'tile' : 'overlay', name);
+        }else if(API.registerLayer){
+          const id = API.registerLayer(lyr, (lyr instanceof L.TileLayer ? 'tile':'overlay'), name);
+          ensureOrderEntry(id);
+        }
+      }
+      // Progress watchdog: hide shortly after any layeradd
+      if(window.__agroProgress){ setTimeout(()=> window.__agroProgress.hide(), 600); }
+      rebuildZOrder();
+      syncLayerUI();
+    });
+  }, 800);
+
+  // --- Build panes and z-index according to ORDER (top of ORDER on top) ---
+  function rebuildZOrder(){
+    const m = mapRef(); if(!m) return;
+    const paneBase = 200; // tilePane ~200, overlay ~400; we will manage our own range safely
+    const items = ORDER.map(id => [id, REG.get(id)]).filter(([,e])=> e && e.layer);
+    // Assign pane & bring to front/back according to position
+    items.forEach(([,e], idx) => {
+      const z = paneBase + 50 + idx; // increase with idx so later in ORDER sits above
+      const paneName = 'agro-pane-' + idx;
+      if(!m.getPane(paneName)){
+        const p = m.createPane(paneName);
+        p.style.zIndex = String(z);
+      }else{
+        m.getPane(paneName).style.zIndex = String(z);
+      }
+      try {
+        // try setting pane if supported
+        if(e.layer.setZIndex){ e.layer.setZIndex(z); }
+        if(e.layer.setStyle){ /* vector layers respect bringToFront/Back */ }
+        if(e.layer.options){ e.layer.options.pane = paneName; }
+        // Re-add to apply pane change
+        if(m.hasLayer(e.layer)){ m.removeLayer(e.layer); }
+        e.layer.addTo(m);
+      } catch(_){}
+      // keep visibility
+      if(e.visible === false){ try { m.removeLayer(e.layer); }catch(_){ } }
+    });
+  }
+
+  // --- Sync Layer UI (reuse existing functions if present) ---
+  function syncLayerUI(){
+    if(!$list) return;
+    // Remove ids that no longer exist
+    ORDER = ORDER.filter(id => REG.has(id));
+    window.__AGRO_ORDER = ORDER;
+    // If list currently hidden by toggle, keep state; we keep container visible only by FAB
+    const rows = ORDER.map((id)=>{
+      const e = REG.get(id); const name = e?.name || ('Layer '+id);
+      const visible = e?.visible !== false;
+      return `<div class="layer-row" data-id="${id}">
+        <div class="name" title="${name}">${name}</div>
+        <div class="controls">
+          <button class="layer-btn eye" data-eye title="${visible?'Ocultar':'Mostrar'}">${visible?'👁':'🚫'}</button>
+          <button class="layer-btn" data-up title="Subir">↑</button>
+          <button class="layer-btn" data-down title="Descer">↓</button>
+          <button class="layer-btn" data-del title="Excluir">✖</button></div>
+      </div>`;
+    }).join('');
+    $list.innerHTML = rows;
+    // Attach events
+    $list.querySelectorAll('.layer-row').forEach(row => {
+      const id = row.getAttribute('data-id');
+      const entry = REG.get(id);
+      if(!entry) return;
+      row.querySelector('[data-eye]').addEventListener('click', ()=>{
+        const m = mapRef(); if(!m) return;
+        entry.visible = !entry.visible;
+        try { if(entry.visible){ entry.layer.addTo(m); } else { m.removeLayer(entry.layer); } } catch(_){}
+        rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI();
+      });
+      row.querySelector('[data-up]').addEventListener('click', ()=>{
+        const i = ORDER.indexOf(id);
+        if(i>0){ const t=ORDER[i-1]; ORDER[i-1]=ORDER[i]; ORDER[i]=t; rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI(); }
+      });
+      row.querySelector('[data-down]').addEventListener('click', ()=>{
+        const i = ORDER.indexOf(id);
+        if(i>=0 && i<ORDER.length-1){ const t=ORDER[i+1]; ORDER[i+1]=ORDER[i]; ORDER[i]=t; rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI(); }
+      });
+      row.querySelector('[data-del]').addEventListener('click', ()=>{
+        const m = mapRef();
+        try { window.AGRO_LAYERS.removeById(id, m); } catch(_){}
+        ORDER = ORDER.filter(x=>x!==id); rebuildZOrder(); window.dispatchEvent(new Event('agro-rebuilt-z')); syncLayerUI();
+      });
+    });
+  }
+
+  // --- Progress bar bugs: ensure hide on completion and on errors ---
+  // Wrap FileReader/async flows: we can't hook all, so add watchdogs
+  if(window.__agroProgress){
+    const hide = window.__agroProgress.hide;
+    window.__agroProgress.hide = function(){
+      hide(); // call original
+      // extra: ensure style reset
+      const el = document.getElementById('agro-progress');
+      if(el){ el.style.display='none'; const bar = document.getElementById('agro-progress-bar'); if(bar) bar.style.width='0%'; }
+    };
+    // global error handler fallback
+    window.addEventListener('error', ()=>{ try{ window.__agroProgress.hide(); }catch(_){ } });
+    window.addEventListener('unhandledrejection', ()=>{ try{ window.__agroProgress.hide(); }catch(_){ } });
+  }
+
+  // First sync when ready
+  setTimeout(syncLayerUI, 1000);
+
+})();</script>
+<script defer="">
+// === PATCH: garantir que o painel de camadas mostre tudo que já foi carregado ===
+(function(){
+  const REG = (window.AGRO_LAYERS && window.AGRO_LAYERS._REG) ? window.AGRO_LAYERS._REG : new Map();
+  const API = window.AGRO_LAYERS || (window.AGRO_LAYERS = { registerLayer(){}, removeById(){}, removeAll(){}, _REG: REG });
+  let ORDER = window.__AGRO_ORDER || [];
+  window.__AGRO_ORDER = ORDER;
+
+  // 1) Interceptar L.map para capturar o mapa assim que for criado
+  if(window.L && !L.___agroMapCtorPatched){
+    const _origMap = L.map;
+    L.map = function(){
+      const m = _origMap.apply(this, arguments);
+      window.__leafletMap = m;
+
+      // camada adicionada -> registra se ainda não estiver no REG
+      m.on('layeradd', function(ev){
+        const lyr = ev.layer;
+        const already = Array.from(REG.values()).some(e => e.layer === lyr);
+        if(!already){
+          const name = (lyr._url ? (lyr._url.split('?')[0].split('/').slice(-2).join('/') || 'Mapa')
+                      : (lyr.options && (lyr.options.name || lyr.options.pane)) || lyr.pm?.options?.name || 'Camada');
+          if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.registerNamed){
+            window.AGRO_LAYERS_UI.registerNamed(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+          } else if(API.registerLayer){
+            const id = API.registerLayer(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+            if(!ORDER.includes(id)) ORDER.unshift(id);
+          }
+        }
+        if(window.__agroProgress){ setTimeout(()=> window.__agroProgress.hide(), 400); }
+        if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.sync) window.AGRO_LAYERS_UI.sync();
+      });
+
+      // 2) Registrar camadas já existentes no mapa (basemap + overlays)
+      setTimeout(function registerExisting(){
+        try {
+          const layers = m._layers || {};
+          Object.keys(layers).forEach(k => {
+            const lyr = layers[k];
+            const already = Array.from(REG.values()).some(e => e.layer === lyr);
+            if(!already){
+              const name = (lyr._url ? (lyr._url.split('?')[0].split('/').slice(-2).join('/') || 'Mapa')
+                          : (lyr.options && (lyr.options.name || lyr.options.pane)) || 'Camada');
+              if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.registerNamed){
+                window.AGRO_LAYERS_UI.registerNamed(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+              } else if(API.registerLayer){
+                const id = API.registerLayer(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+                if(!ORDER.includes(id)) ORDER.unshift(id);
+              }
+            }
+          });
+          if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.sync) window.AGRO_LAYERS_UI.sync();
+        } catch(e){ console.warn('registerExisting error', e); }
+      }, 300);
+
+      L.___agroMapCtorPatched = true;
+      return m;
+    };
+  }
+
+  // 3) Se o mapa já existir (criado antes do patch), tenta detectar e registrar
+  function tryBackfill(){
+    if(window.__leafletMap){
+      const m = window.__leafletMap;
+      const layers = m._layers || {};
+      Object.keys(layers).forEach(k => {
+        const lyr = layers[k];
+        const already = Array.from(REG.values()).some(e => e.layer === lyr);
+        if(!already){
+          const name = (lyr._url ? (lyr._url.split('?')[0].split('/').slice(-2).join('/') || 'Mapa')
+                      : (lyr.options && (lyr.options.name || lyr.options.pane)) || 'Camada');
+          if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.registerNamed){
+            window.AGRO_LAYERS_UI.registerNamed(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+          } else if(API.registerLayer){
+            const id = API.registerLayer(lyr, (lyr instanceof L.TileLayer ? 'tile' : 'overlay'), name);
+            if(!ORDER.includes(id)) ORDER.unshift(id);
+          }
+        }
+      });
+      if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.sync) window.AGRO_LAYERS_UI.sync();
+    }
+  }
+  setTimeout(tryBackfill, 1200);
+})();
+</script>
+<script defer="">
+// === PATCH: painel de camadas deve refletir a ORDEM REAL do mapa (tiles, KML/KMZ, shapes) ===
+(function(){
+  const REG = (window.AGRO_LAYERS && window.AGRO_LAYERS._REG) ? window.AGRO_LAYERS._REG : new Map();
+  let ORDER = window.__AGRO_ORDER || [];
+  window.__AGRO_ORDER = ORDER;
+
+  function mapRef(){ return window.__leafletMap; }
+
+  // Efetivo Z-index de uma layer (tile ou vetor)
+  function effectiveZ(layer, m){
+    let z = 0;
+    try{
+      if(layer && typeof layer.getZIndex === 'function'){
+        const v = layer.getZIndex();
+        if(typeof v === 'number') z = v;
+      }
+      if(!z && layer && layer.options && typeof layer.options.zIndex === 'number'){
+        z = layer.options.zIndex;
+      }
+      const paneName = (layer && layer.options && layer.options.pane) ? layer.options.pane : null;
+      const pane = paneName && m ? m.getPane(paneName) : (layer.getPane ? layer.getPane() : null);
+      if(pane && pane.style && pane.style.zIndex){
+        const pz = parseInt(pane.style.zIndex, 10);
+        if(!isNaN(pz)) z = pz;
+      }
+      // Vetor SVG/canvas: tenta pegar do parent do path
+      if(!z && layer && layer._path && layer._path.parentNode && layer._path.parentNode.style.zIndex){
+        const pz = parseInt(layer._path.parentNode.style.zIndex, 10);
+        if(!isNaN(pz)) z = pz;
+      }
+      // Fallback: ordem de inserção (id numérico crescente ≈ mais antigo embaixo)
+      if(!z && layer && layer._leaflet_id){
+        z = layer._leaflet_id;
+      }
+    }catch(_){}
+    return z;
+  }
+
+  // Reconstruir ORDER a partir do estado real do mapa
+  function pullOrderFromMap(){
+    const m = mapRef();
+    if(!m) return;
+    const items = [];
+    for(const [id, entry] of REG){
+      if(entry && entry.layer){
+        items.push({ id, entry, z: effectiveZ(entry.layer, m) });
+      }
+    }
+    // sort por z ASC e depois por existência no mapa (camadas não visíveis devem aparecer mas manter posição relativa)
+    items.sort((a,b)=> a.z - b.z);
+    ORDER = items.map(it => it.id);
+    window.__AGRO_ORDER = ORDER;
+    // Sincroniza UI se disponível
+    if(window.AGRO_LAYERS_UI && window.AGRO_LAYERS_UI.sync) window.AGRO_LAYERS_UI.sync();
+  }
+  window.__AGRO_pullOrderFromMap = pullOrderFromMap;
+
+  // Hook: quando adicionar/remover camada no mapa → puxa ordem real
+  setTimeout(()=>{
+    const m = mapRef(); if(!m) return;
+    m.on('layeradd', ()=> setTimeout(pullOrderFromMap, 0));
+    m.on('layerremove', ()=> setTimeout(pullOrderFromMap, 0));
+    // primeira sincronização (inclui basemap/overlays iniciais)
+    setTimeout(pullOrderFromMap, 400);
+  }, 800);
+
+  // Também puxe ao terminar reordenação manual (UI ↑/↓ chama rebuildZOrder, mas aqui revalida)
+  window.addEventListener('agro-rebuilt-z', ()=> setTimeout(pullOrderFromMap, 0));
+})();
+</script>
+<script defer="">
+// === STACKING MANAGER: última camada importada sempre por cima ===
+(function(){
+  // Base z-index for our imports; higher than common tile/overlay defaults
+  let Z = 600; // starts above default overlay panes
+  function mapRef(){ return window.__leafletMap; }
+
+  // Ensure we patch map after it exists
+  function setup(){
+    const m = mapRef();
+    if(!m) { setTimeout(setup, 300); return; }
+
+    function lift(layer){
+      try {
+        const paneName = 'agro-stack-' + (++Z);
+        const pane = m.getPane(paneName) || m.createPane(paneName);
+        pane.style.zIndex = String(Z);
+        if(layer && layer.options){ layer.options.pane = paneName; }
+        if(typeof layer.setZIndex === 'function'){ layer.setZIndex(Z); }
+        // re-add to apply pane change
+        if(m.hasLayer(layer)){ m.removeLayer(layer); }
+        layer.addTo(m);
+      } catch(e){ /* ignore */ }
+    }
+
+    // Any time a layer is added, move it to the topmost pane
+    m.on('layeradd', function(ev){
+      const layer = ev.layer;
+      lift(layer);
+    });
+  }
+  setup();
+})();
+</script>
+<script defer="">
+// === STRICT IMPORT ORDER STACKING ===
+// Atribui uma ordem incremental a cada layer quando aparece (primeiro=baixo, último=topo).
+// Força z-index via panes individuais, funcionando para tiles e vetores.
+(function(){
+  let ORDERCTR = 0;
+  const BASE_Z = 700; // acima do overlayPane padrão
+
+  function mapRef(){ return window.__leafletMap; }
+
+  function applyZForAll(){
+    const m = mapRef(); if(!m) return;
+    const list = [];
+    const layers = m._layers || {};
+    Object.keys(layers).forEach(k => {
+      const lyr = layers[k];
+      if(!lyr) return;
+      if(lyr.__agroOrder == null) return; // só mexe nas camadas importadas
+      list.push(lyr);
+    });
+    // sort by __agroOrder ASC (mais antigo embaixo)
+    list.sort((a,b)=> (a.__agroOrder||0) - (b.__agroOrder||0));
+    list.forEach((lyr, idx) => {
+      const z = BASE_Z + idx + 1;
+      try {
+        // prefer setZIndex quando existir (Tile/Grid)
+        if(typeof lyr.setZIndex === 'function'){
+          lyr.setZIndex(z);
+        }
+        // garantir pane dedicado (para vetores/overlays)
+        const m = mapRef();
+        const paneName = 'agro-order-' + z;
+        const pane = m.getPane(paneName) || m.createPane(paneName);
+        pane.style.zIndex = String(z);
+        if(lyr.options){ lyr.options.pane = paneName; }
+        if(lyr._setPane){ lyr._setPane(paneName); }
+        // re-add para aplicar mudanças de pane
+        if(m.hasLayer(lyr)){ m.removeLayer(lyr); }
+        lyr.addTo(m);
+        if(lyr.bringToFront){ lyr.bringToFront(); }
+      } catch(e){ /* ignore */ }
+    });
+  }
+
+  function onLayerAdd(ev){
+    const lyr = ev.layer;
+    // atribui ordem apenas se for novo (não reconta ao readd)
+    if(lyr.__agroOrder == null){
+      ORDERCTR += 1;
+      lyr.__agroOrder = ORDERCTR;
+    }
+    // aplica z-index para todos garantindo consistência
+    setTimeout(applyZForAll, 0);
+  }
+
+  function setup(){
+    const m = mapRef();
+    if(!m){ setTimeout(setup, 300); return; }
+    // registra existentes (mantém ordem atual como base)
+    const layers = m._layers || {};
+    Object.keys(layers).forEach(k => {
+      const lyr = layers[k];
+      if(lyr && lyr.__agroOrder == null){
+        ORDERCTR += 1;
+        lyr.__agroOrder = ORDERCTR;
+      }
+    });
+    applyZForAll();
+
+    // hook events
+    m.on('layeradd', onLayerAdd);
+    m.on('layerremove', function(ev){
+      // ao remover, apenas reaplica z para fechar buracos na sequência
+      setTimeout(applyZForAll, 0);
+    });
+  }
+  setup();
+})();
+</script>
+<script defer="">
+// === STACKING RULES: "Carta/Mapa" sempre acima de Shapes/KML ===
+// - Detecta "cartas/mapas" (image overlays de PDF renderizado, tile layers de imagery, ou nome contendo 'Carta'/'Mapa')
+// - Garante que essas camadas fiquem SEMPRE por cima. Entre si, respeitam ordem de importação.
+// - Shapes/KML/GeoJSON/VectorGrid ficam abaixo, respeitando ordem de importação.
+(function(){
+  let ORDERCTR = 0;
+  const BASE_OTHER = 900;   // base para shapes/KML/etc.
+  const BASE_CARTA = 1900;  // base para cartas/mapas (sempre acima)
+  function mapRef(){ return window.__leafletMap; }
+
+  function kindOf(layer){
+    try{
+      if(layer.__agroKind) return layer.__agroKind;
+      // Heurística:
+      // 1) ImageOverlay (muito comum para "Carta" PDF rasterizada)
+      if(typeof L.ImageOverlay !== 'undefined' && layer instanceof L.ImageOverlay) return layer.__agroKind='carta';
+      // 2) TileLayer de imagery / mapserver / raster
+      if(typeof L.TileLayer !== 'undefined' && layer instanceof L.TileLayer){
+        const url = (layer._url||'').toLowerCase();
+        if(url.includes('mapserver') || url.includes('world_imagery') || url.includes('google') || url.includes('tile') || url.match(/\.(png|jpg|jpeg|webp)$/)) {
+          return layer.__agroKind='carta';
+        }
+      }
+      // 3) Nome/pane marcado
+      const nm = ((layer.options&&layer.options.name)||layer.options?.pane||'').toString().toLowerCase();
+      if(nm.includes('carta') || nm.includes('mapa') || nm.includes('mps') || nm.includes('pdf')) return layer.__agroKind='carta';
+      // 4) VectorGrid/GeoJSON/KML etc. => outros
+      return layer.__agroKind='outro';
+    }catch(_){ return 'outro'; }
+  }
+
+  function zFor(layer, idxCarta, idxOutro){
+    const k = kindOf(layer);
+    if(k==='carta') return BASE_CARTA + idxCarta + 1;
+    return BASE_OTHER + idxOutro + 1;
+  }
+
+  function applyZ(){
+    const m = mapRef(); if(!m) return;
+    // Coletar camadas importadas (tem __agroOrder setado)
+    const cartas = [];
+    const outros = [];
+    const layers = m._layers || {};
+    Object.keys(layers).forEach(k => {
+      const lyr = layers[k];
+      if(!lyr || lyr.__agroOrder==null) return;
+      if(kindOf(lyr)==='carta') cartas.push(lyr); else outros.push(lyr);
+    });
+    // ordenar por ordem de importação (mais antigo primeiro)
+    cartas.sort((a,b)=> (a.__agroOrder||0)-(b.__agroOrder||0));
+    outros.sort((a,b)=> (a.__agroOrder||0)-(b.__agroOrder||0));
+    // aplicar z; "outros" primeiro (embaixo), "cartas" depois (em cima)
+    outros.forEach((lyr, i)=> applyLayerZ(lyr, zFor(lyr, 0, i)));
+    cartas.forEach((lyr, i)=> applyLayerZ(lyr, zFor(lyr, i, 0)));
+  }
+
+  function applyLayerZ(layer, z){
+    try{
+      const m = mapRef(); if(!m) return;
+      const paneName = 'agro-z-' + z;
+      const pane = m.getPane(paneName) || m.createPane(paneName);
+      pane.style.zIndex = String(z);
+      if(layer.options){ layer.options.pane = paneName; }
+      if(typeof layer.setZIndex === 'function'){ layer.setZIndex(z); }
+      if(layer._setPane){ layer._setPane(paneName); }
+      // re-add para aplicar o pane
+      if(m.hasLayer(layer)){ m.removeLayer(layer); }
+      layer.addTo(m);
+      if(layer.bringToFront && kindOf(layer)==='carta'){ layer.bringToFront(); }
+    }catch(_){}
+  }
+
+  function onLayerAdd(ev){
+    const lyr = ev.layer;
+    if(lyr.__agroOrder == null){
+      ORDERCTR += 1;
+      lyr.__agroOrder = ORDERCTR;
+    }
+    setTimeout(applyZ, 0);
+  }
+
+  function setup(){
+    const m = mapRef();
+    if(!m){ setTimeout(setup, 300); return; }
+    // marcar existentes
+    const layers = m._layers || {};
+    Object.keys(layers).forEach(k => {
+      const lyr = layers[k];
+      if(lyr && lyr.__agroOrder==null){ ORDERCTR += 1; lyr.__agroOrder = ORDERCTR; }
+    });
+    applyZ();
+    m.on('layeradd', onLayerAdd);
+    m.on('layerremove', ()=> setTimeout(applyZ, 0));
+  }
+  setup();
+})();
+</script>
+<script>
+(function(){
+  function ensurePanes(map){
+    if(!map) return;
+    if(!map.getPane('agro-carta-pane')){
+      const p = map.createPane('agro-carta-pane');
+      p.classList.add('agro-carta-pane'); p.style.zIndex = '10000';
+    } else { map.getPane('agro-carta-pane').style.zIndex = '10000'; }
+    if(!map.getPane('agro-below-carta')){
+      const q = map.createPane('agro-below-carta');
+      q.classList.add('agro-below-carta'); q.style.zIndex = '5000';
+    } else { map.getPane('agro-below-carta').style.zIndex = '5000'; }
+  }
+
+  // ImageOverlay (Carta) -> sempre no topo
+  if(window.L && L.ImageOverlay && !L.ImageOverlay.__agroCartaTop){
+    const _init  = L.ImageOverlay.prototype.initialize;
+    const _onAdd = L.ImageOverlay.prototype.onAdd;
+    L.ImageOverlay.prototype.initialize = function(url, bounds, options){
+      options = options || {};
+      options.pane = 'agro-carta-pane';
+      options.zIndex = 10000;
+      return _init.call(this, url, bounds, options);
+    };
+    L.ImageOverlay.prototype.onAdd = function(map){
+      ensurePanes(map);
+      const r = _onAdd.call(this, map);
+      try { if(this.setZIndex) this.setZIndex(10000); if(this.bringToFront) this.bringToFront(); } catch(_){}
+      return r;
+    };
+    L.ImageOverlay.__agroCartaTop = true;
+  }
+
+  // Forçar todas as OUTRAS layers para o pane abaixo
+  function forceBelow(layer, map){
+    try{
+      if(!layer) return;
+      if(typeof L.ImageOverlay !== 'undefined' && (layer instanceof L.ImageOverlay)) return;
+      layer.options = layer.options || {};
+      layer.options.pane = 'agro-below-carta';
+      if(typeof layer.setZIndex === 'function'){ layer.setZIndex(5000); }
+      if(layer._setPane){ layer._setPane('agro-below-carta'); }
+      if(map){
+        const has = map.hasLayer(layer);
+        if(has) map.removeLayer(layer);
+        layer.addTo(map);
+      }
+    }catch(_){}
+  }
+
+  function wire(){
+    const map = window.__leafletMap;
+    if(!map){ setTimeout(wire, 300); return; }
+    ensurePanes(map);
+
+    // ajustar existentes
+    const layers = map._layers || {};
+    for(const k in layers){ forceBelow(layers[k], map); }
+
+    map.on('layeradd', function(e){
+      const lyr = e.layer;
+      ensurePanes(map);
+      // se for carta, mover pro pane topo; senão, pane abaixo
+      if(typeof L.ImageOverlay !== 'undefined' && (lyr instanceof L.ImageOverlay)){
+        try{
+          lyr.options = lyr.options || {};
+          lyr.options.pane = 'agro-carta-pane';
+          if(map.hasLayer(lyr)) map.removeLayer(lyr);
+          lyr.addTo(map);
+          if(lyr.setZIndex)    lyr.setZIndex(10000);
+          if(lyr.bringToFront) lyr.bringToFront();
+        }catch(_){}
+      } else {
+        forceBelow(lyr, map);
+      }
+    });
+  }
+  wire();
+
+  // envolver L.geoJSON e VectorGrid para já nascerem no pane abaixo
+  try{
+    if(window.L && L.geoJSON && !L.__agroGeoPaneWrapped){
+      const OG = L.geoJSON;
+      L.geoJSON = function(data, options){
+        options = options || {};
+        options.pane = 'agro-below-carta';
+        const layer = OG.call(this, data, options);
+        try{ if(layer.setZIndex) layer.setZIndex(5000); }catch(_){}
+        return layer;
+      };
+      L.__agroGeoPaneWrapped = true;
+    }
+  }catch(_){}
+
+  try{
+    if(window.L && L.vectorGrid && !L.vectorGrid.__agroPaneWrapped){
+      const slicerOG = L.vectorGrid.slicer;
+      L.vectorGrid.slicer = function(geojson, options){
+        options = options || {};
+        options.pane = 'agro-below-carta';
+        const layer = slicerOG.call(this, geojson, options);
+        try{ if(layer.setZIndex) layer.setZIndex(5000); }catch(_){}
+        return layer;
+      };
+      L.vectorGrid.__agroPaneWrapped = true;
+    }
+  }catch(_){}
+})();
+</script>
+<script>
+// === CARTA > TUDO: força L.TileLayer e L.ImageOverlay no topo; todo o resto abaixo ===
+(function(){
+  function ensurePanes(map){
+    if(!map) return;
+    if(!map.getPane('agro-carta-pane')){
+      const p = map.createPane('agro-carta-pane'); p.classList.add('agro-carta-pane'); p.style.zIndex='100000';
+    } else { map.getPane('agro-carta-pane').style.zIndex='100000'; }
+    if(!map.getPane('agro-below-carta')){
+      const q = map.createPane('agro-below-carta'); q.classList.add('agro-below-carta'); q.style.zIndex='5000';
+    } else { map.getPane('agro-below-carta').style.zIndex='5000'; }
+  }
+
+  function isCarta(layer){
+    try{
+      if(typeof L.ImageOverlay !== 'undefined' && layer instanceof L.ImageOverlay) return true;
+      if(typeof L.TileLayer    !== 'undefined' && layer instanceof L.TileLayer)    return true;
+    }catch(_){}
+    return false;
+  }
+
+  // Wrap genérico em L.Layer.addTo para setar pane/zIndex ANTES de adicionar
+  if(window.L && L.Layer && !L.Layer.__agroPaneWrapped){
+    const _addTo = L.Layer.prototype.addTo;
+    L.Layer.prototype.addTo = function(map){
+      try{
+        ensurePanes(map);
+        if(isCarta(this)){
+          this.options = this.options || {};
+          this.options.pane = 'agro-carta-pane';
+          if(typeof this.setZIndex === 'function') this.setZIndex(100000);
+        } else {
+          this.options = this.options || {};
+          this.options.pane = 'agro-below-carta';
+          if(typeof this.setZIndex === 'function') this.setZIndex(5000);
+        }
+      }catch(_){}
+      const r = _addTo.call(this, map);
+      try{
+        if(isCarta(this) && this.bringToFront) this.bringToFront();
+      }catch(_){}
+      return r;
+    };
+    L.Layer.__agroPaneWrapped = true;
+  }
+
+  // Fallback: varrer já existentes e corrigir
+  function fixExisting(){
+    const map = window.__leafletMap;
+    if(!map) return;
+    ensurePanes(map);
+    const layers = map._layers || {};
+    for(const k in layers){
+      const lyr = layers[k];
+      if(!lyr) continue;
+      try{
+        if(isCarta(lyr)){
+          lyr.options = lyr.options || {};
+          lyr.options.pane = 'agro-carta-pane';
+          if(map.hasLayer(lyr)) map.removeLayer(lyr);
+          lyr.addTo(map);
+          if(lyr.setZIndex)    lyr.setZIndex(100000);
+          if(lyr.bringToFront) lyr.bringToFront();
+        } else {
+          lyr.options = lyr.options || {};
+          lyr.options.pane = 'agro-below-carta';
+          if(map.hasLayer(lyr)) map.removeLayer(lyr);
+          lyr.addTo(map);
+          if(lyr.setZIndex)    lyr.setZIndex(5000);
+        }
+      }catch(_){}
+    }
+  }
+
+  // Liga também nos eventos para subcamadas de grupos/cluster
+  function wireMap(){
+    const map = window.__leafletMap;
+    if(!map){ setTimeout(wireMap, 400); return; }
+    ensurePanes(map);
+    map.on('layeradd', function(e){
+      const lyr = e.layer;
+      try{
+        if(isCarta(lyr)){
+          lyr.options = lyr.options || {};
+          lyr.options.pane = 'agro-carta-pane';
+          if(map.hasLayer(lyr)) map.removeLayer(lyr);
+          lyr.addTo(map);
+          if(lyr.setZIndex)    lyr.setZIndex(100000);
+          if(lyr.bringToFront) lyr.bringToFront();
+        } else {
+          lyr.options = lyr.options || {};
+          lyr.options.pane = 'agro-below-carta';
+          if(map.hasLayer(lyr)) map.removeLayer(lyr);
+          lyr.addTo(map);
+          if(lyr.setZIndex)    lyr.setZIndex(5000);
+        }
+      }catch(_){}
+    });
+  }
+
+  setTimeout(fixExisting, 500);
+  window.addEventListener('load', ()=> setTimeout(fixExisting, 0));
+  wireMap();
+})();
+</script>
+<script>
+// === CARTA NO TOPO (detecção ampla) ===
+(function(){
+  function ensurePanes(map){
+    if(!map) return;
+    const c = map.getPane('agro-carta-pane') || map.createPane('agro-carta-pane');
+    c.classList.add('agro-carta-pane'); c.style.zIndex = '2147483600';
+    const b = map.getPane('agro-below-carta') || map.createPane('agro-below-carta');
+    b.classList.add('agro-below-carta'); b.style.zIndex = '1000';
+  }
+
+  function isCarta(lyr){
+    try{
+      if (!lyr) return false;
+      // 1) ImageOverlay clássico
+      if (window.L && L.ImageOverlay && lyr instanceof L.ImageOverlay) return true;
+      // 2) Duck-typing: possui _image (IMG/CANVAS) típico de overlay raster
+      if (lyr._image && (lyr._image.tagName === 'IMG' || lyr._image.tagName === 'CANVAS')) return true;
+      // 3) Overlay raster com URL e bounds (não é GridLayer/TileLayer)
+      if (lyr._url && typeof lyr.getBounds === 'function' && typeof lyr.getTileSize !== 'function') return true;
+      // 4) Nome/pane sugerindo carta
+      const nm = ((lyr.options && (lyr.options.name || lyr.options.pane)) || '').toString().toLowerCase();
+      if (/(carta|mapa|pdf)/i.test(nm)) return true;
+    } catch(_) {}
+    return false;
+  }
+
+  function forceCarta(lyr, map){
+    try{
+      if(!lyr) return;
+      lyr.options = lyr.options || {};
+      lyr.options.pane = 'agro-carta-pane';
+      const had = map.hasLayer(lyr);
+      if(had) map.removeLayer(lyr);
+      lyr.addTo(map);
+      if(lyr.setZIndex) lyr.setZIndex(2147483600);
+      if(lyr.bringToFront) lyr.bringToFront();
+    }catch(_){}
+  }
+
+  function forceBelow(lyr, map){
+    try{
+      if(!lyr) return;
+      lyr.options = lyr.options || {};
+      lyr.options.pane = 'agro-below-carta';
+      const had = map.hasLayer(lyr);
+      if(had) map.removeLayer(lyr);
+      lyr.addTo(map);
+      if(lyr.setZIndex) lyr.setZIndex(1000);
+    }catch(_){}
+  }
+
+  // Intercepta addTo de TODAS as layers
+  if(window.L && L.Layer && !L.Layer.__agroCartaWrap2){
+    const _addTo = L.Layer.prototype.addTo;
+    L.Layer.prototype.addTo = function(map){
+      try{ ensurePanes(map); }catch(_){}
+      if (isCarta(this)) {
+        try { this.options = this.options || {}; this.options.pane = 'agro-carta-pane'; } catch(_){}
+      } else {
+        try { this.options = this.options || {}; this.options.pane = 'agro-below-carta'; } catch(_){}
+      }
+      const r = _addTo.call(this, map);
+      try {
+        if (isCarta(this)) {
+          if (this.setZIndex) this.setZIndex(2147483600);
+          if (this.bringToFront) this.bringToFront();
+          // Em alguns plugins, o elemento é criado depois: observar e reajustar
+          const el = (this.getElement && this.getElement()) || this._image || null;
+          if (el && el.parentElement && el.parentElement.parentElement){
+            el.parentElement.parentElement.style.zIndex = '2147483600';
+          }
+        } else {
+          if (this.setZIndex) this.setZIndex(1000);
+        }
+      } catch(_){}
+      return r;
+    };
+    L.Layer.__agroCartaWrap2 = true;
+  }
+
+  function wireMap(){
+    const map = window.__leafletMap;
+    if(!map){ setTimeout(wireMap, 400); return; }
+    ensurePanes(map);
+
+    // Ajusta camadas já existentes
+    const layers = map._layers || {};
+    for(const k in layers){
+      const lyr = layers[k];
+      if(isCarta(lyr)) forceCarta(lyr, map);
+      else forceBelow(lyr, map);
+    }
+
+    // Qualquer layer adicionada
+    map.on('layeradd', function(e){
+      const lyr = e.layer;
+      if(isCarta(lyr)) forceCarta(lyr, map);
+      else forceBelow(lyr, map);
+    });
+
+    // Observa mutações no container para corrigir z-index de elementos tardios
+    const container = map.getPanes().overlayPane.parentElement;
+    const mo = new MutationObserver(()=>{
+      try {
+        const cartaPane = map.getPane('agro-carta-pane');
+        if(cartaPane) cartaPane.style.zIndex = '2147483600';
+      } catch(_){}
+    });
+    mo.observe(container, {childList:true, subtree:true});
+  }
+  wireMap();
+})();
+</script>
+
+<!-- === Carta: controle de sobreposição (Top/Bottom) === -->
+<style>
+  .leaflet-pane.agro-pane-high { z-index: 2000000000 !important; }
+  .leaflet-pane.agro-pane-low  { z-index: 1000000000 !important; }
+  #agro-carta-toggle {
+    position: absolute; right: 12px; top: 12px; z-index: 3000000000;
+    background: #0f172acc; color: #fff; border-radius: 12px; padding: 6px 8px;
+    font: 12px/1 system-ui,-apple-system,Segoe UI,Roboto; display:flex; gap:6px; align-items:center;
+    box-shadow: 0 10px 28px rgba(0,0,0,.25); backdrop-filter: blur(6px);
+  }
+  #agro-carta-toggle button{ border:0; border-radius: 8px; padding: 4px 8px; cursor:pointer; background:#1f2937; color:#fff; }
+  #agro-carta-toggle button.active{ background:#2563eb; }
+</style>
+<script>
+(function(){
+  var MODE = 'top';
+  function isCarta(layer){
+    try{
+      if (window.L && L.ImageOverlay && layer instanceof L.ImageOverlay) return true;
+      if (layer && layer._image && (layer._image.tagName==='IMG' || layer._image.tagName==='CANVAS')) return true;
+      const nm = ((layer && layer.options && (layer.options.name || layer.options.pane)) || '').toString().toLowerCase();
+      if (/(carta|mapa|mps|pdf)/.test(nm)) return true;
+    }catch(_){}
+    return false;
+  }
+  function ensurePanes(map){
+    if(!map) return;
+    if(!map.getPane('agro-pane-high')) map.createPane('agro-pane-high').classList.add('agro-pane-high');
+    if(!map.getPane('agro-pane-low'))  map.createPane('agro-pane-low').classList.add('agro-pane-low');
+    var high = map.getPane('agro-pane-high'); var low = map.getPane('agro-pane-low');
+    if(MODE==='top'){ high.style.zIndex='2000000000'; low.style.zIndex='1000000000'; }
+    else { high.style.zIndex='1000000000'; low.style.zIndex='2000000000'; }
+  }
+  function placeLayer(layer, map){
+    try{
+      if(!layer) return;
+      var carta = isCarta(layer);
+      var goHigh = (MODE==='top') ? carta : !carta;
+      var pane = goHigh ? 'agro-pane-high' : 'agro-pane-low';
+      layer.options = layer.options || {}; layer.options.pane = pane;
+      var onMap = map.hasLayer(layer); if(onMap) map.removeLayer(layer); layer.addTo(map);
+      if(typeof layer.setZIndex==='function') layer.setZIndex(goHigh?2000000000:1000000000);
+      if(goHigh && layer.bringToFront) layer.bringToFront();
+    }catch(_){}
+  }
+  function reapplyAll(map){
+    if(!map) return; ensurePanes(map);
+    var Ls = map._layers || {}; Object.keys(Ls).forEach(k=> placeLayer(Ls[k], map));
+  }
+  function wrapAddTo(){
+    if(!window.L || !L.Layer || L.Layer.__agroCartaModeWrapped) return;
+    var _addTo = L.Layer.prototype.addTo;
+    L.Layer.prototype.addTo = function(map){
+      ensurePanes(map);
+      var carta = isCarta(this);
+      var goHigh = (MODE==='top') ? carta : !carta;
+      this.options = this.options || {}; this.options.pane = goHigh?'agro-pane-high':'agro-pane-low';
+      var r = _addTo.call(this, map);
+      try{
+        if(typeof this.setZIndex==='function') this.setZIndex(goHigh?2000000000:1000000000);
+        if(goHigh && this.bringToFront) this.bringToFront();
+      }catch(_){}
+      return r;
+    };
+    L.Layer.__agroCartaModeWrapped = true;
+  }
+  function wireUI(map){
+    var box = document.getElementById('agro-carta-toggle'); if(!box) return;
+    box.hidden = false;
+    var btnTop = // agro-btn-top removido;
+
+    var btnBot = document.getElementById('agro-btn-bottom');
+    function sync(){ btnTop.classList.toggle('active', MODE==='top'); btnBot.classList.toggle('active', MODE==='bottom'); }
+    btnTop.onclick = function(){ MODE='top'; ensurePanes(map); reapplyAll(map); sync(); };
+    btnBot.onclick = function(){ MODE='bottom'; ensurePanes(map); reapplyAll(map); sync(); };
+    sync();
+  }
+  (function init(){
+    var t = setInterval(function(){
+      var map = window.__leafletMap;
+      if(map && window.L){
+        clearInterval(t);
+        ensurePanes(map); wrapAddTo(); wireUI(map); reapplyAll(map);
+        map.on('layeradd', e=> placeLayer(e.layer, map));
+        map.on('layerremove', ()=> ensurePanes(map));
+      }
+    }, 200);
+  })();
+})();
+</script>
+<!-- === /Carta: controle de sobreposição === -->
+
+<!-- Carta Top/Bottom: wiring -->
+<script>
+(function(){
+  function wireCartaToggle(){
+    try{
+      var btnTop = // agro-btn-top removido;
+
+      var btnBottom = document.getElementById('agro-btn-bottom');
+      var mapPane = null;
+      if (window.E && E.map && E.map.getPane) mapPane = E.map.getPane('agro-carta');
+      if (!mapPane) mapPane = document.querySelector('.leaflet-pane#agro-carta') || document.getElementById('agro-carta');
+      if (!mapPane || (!btnTop && !btnBottom)) { setTimeout(wireCartaToggle, 300); return; }
+      function setMode(mode){
+        if(mode==='top'){
+          mapPane.style.zIndex = '2147483600';
+          mapPane.style.pointerEvents = 'auto';
+          if (btnTop) btnTop.classList.add('active');
+          if (btnBottom) btnBottom.classList.remove('active');
+        } else {
+          mapPane.style.zIndex = '350';
+          mapPane.style.pointerEvents = 'auto';
+          if (btnBottom) btnBottom.classList.add('active');
+          if (btnTop) btnTop.classList.remove('active');
+        }
+        try {
+          if (window.E && E.pdfLayers) Object.values(E.pdfLayers).forEach(function(ov){ if (ov && ov.bringToFront) ov.bringToFront(); });
+        } catch(_){}
+      }
+      if (btnTop) btnTop.onclick = function(){ setMode('top'); };
+      if (btnBottom) btnBottom.onclick = function(){ setMode('bottom'); };
+      setMode('top');
+    }catch(_){ setTimeout(wireCartaToggle, 300); }
+  }
+  setTimeout(wireCartaToggle, 500);
+})();
+</script>
+
+
+<script>
+(function(){
+  var Panel = {
+    fab: null, box: null, list: null, header: null,
+    layers: [], // {id, name, layer, kind:'pdf'|'vector', visible:true}
+    idseq: 1
+  };
+
+  function $(id){ return document.getElementById(id); }
+
+  function initPanel(){
+    Panel.fab = $('layersFab'); Panel.box = $('layersPanel'); Panel.list = $('layersList'); Panel.header = $('layersHeader');
+    if(!Panel.fab || !Panel.box) return;
+
+    Panel.fab.onclick = function(){ Panel.box.style.display = (Panel.box.style.display==='none' || !Panel.box.style.display) ? 'block' : 'none'; render(); };
+    $('layersClose').onclick = function(){ Panel.box.style.display = 'none'; };
+
+    // Drag panel
+    (function drag(el, handle){
+      var sx=0, sy=0, ox=0, oy=0, dg=false;
+      handle.addEventListener('mousedown', function(e){
+        dg=true; el.classList.add('dragging'); sx=e.clientX; sy=e.clientY; var r=el.getBoundingClientRect(); ox=r.left; oy=r.top;
+        function mm(ev){ if(!dg) return; el.style.left=(ox+(ev.clientX-sx))+'px'; el.style.top=(oy+(ev.clientY-sy))+'px'; el.style.transform=''; }
+        function mu(){ dg=false; el.classList.remove('dragging'); document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); }
+        document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu);
+      });
+    })(Panel.box, Panel.header);
+  }
+
+  function addLayer(name, layer, kind){
+    try{
+      if(!layer) return;
+      var id = 'lyr_'+(Panel.idseq++);
+      Panel.layers.push({ id:id, name:name, layer:layer, kind:kind||'vector', visible:true });
+      render();
+    }catch(e){ console.warn(e); }
+  }
+
+  function removeLayerItem(id){
+    var idx = Panel.layers.findIndex(function(x){ return x.id===id; });
+    if(idx>=0){
+      var it = Panel.layers[idx];
+      try{
+        if(it.kind==='pdf'){ if(window.E && E.map && it.layer){ E.map.removeLayer(it.layer); } }
+        else { if(it.layer && it.layer.remove) it.layer.remove(); }
+      }catch(_){}
+      Panel.layers.splice(idx,1);
+      render();
+    }
+  }
+
+  function setVisible(id, vis){
+    var it = Panel.layers.find(function(x){ return x.id===id; });
+    if(!it) return;
+    it.visible = !!vis;
+    try{
+      if(it.kind==='pdf' && it.layer && it.layer.setOpacity){
+        it.layer.setOpacity(vis? (it.layer._opacity||1) : 0);
+      }else if(it.kind==='vector'){
+        if (it.layer.eachLayer){
+          it.layer.eachLayer(function(l){
+            try{
+              if(l.setStyle){ l.setStyle({opacity: vis? (l.options.opacity ?? 1) : 0, fillOpacity: vis? (l.options.fillOpacity ?? 0.25) : 0}); }
+              if(l.setOpacity){ l.setOpacity(vis? (l.options.opacity ?? 1) : 0); }
+              if(l._icon){ l._icon.style.display = vis? '' : 'none'; }
+              if(l._path){ l._path.style.display = vis? '' : 'none'; }
+            }catch(_){}
+          });
+        }else{
+          if(it.layer.setStyle){ it.layer.setStyle({opacity: vis? (it.layer.options.opacity ?? 1) : 0, fillOpacity: vis? (it.layer.options.fillOpacity ?? 0.25) : 0}); }
+          if(it.layer.setOpacity){ it.layer.setOpacity(vis? (it.layer.options.opacity ?? 1) : 0); }
+        }
+      }
+    }catch(_){}
+  }
+
+  function reorder(id, dir){
+    // dir: 'up' => sobe (fica mais acima), 'down' => desce
+    var idx = Panel.layers.findIndex(function(x){ return x.id===id; });
+    if(idx<0) return;
+    var swapWith = dir==='up' ? idx+1 : idx-1;
+    if(swapWith<0 || swapWith>=Panel.layers.length) return;
+    var tmp = Panel.layers[idx]; Panel.layers[idx] = Panel.layers[swapWith]; Panel.layers[swapWith] = tmp;
+    applyOrder(); render();
+  }
+
+  function applyOrder(){
+    // PDFs: ajusta zIndex dentro do pane 'agro-carta' usando style.zIndex incremental
+    var z = 1000;
+    Panel.layers.filter(function(x){ return x.kind==='pdf'; }).forEach(function(it){
+      try{
+        var el = it.layer && it.layer.getElement && it.layer.getElement();
+        if(el){ z += 5; el.style.zIndex = String(z); }
+      }catch(_){}
+    });
+
+    // Vetores: reempilha chamando bringToFront em ordem (último no topo)
+    Panel.layers.filter(function(x){ return x.kind==='vector'; }).forEach(function(it){
+      try{
+        if(it.layer && it.layer.bringToFront) it.layer.bringToFront();
+        else if(it.layer && it.layer.eachLayer){
+          it.layer.eachLayer(function(l){ if(l.bringToFront) l.bringToFront(); });
+        }
+      }catch(_){}
+    });
+  }
+
+  function render(){
+    if(!Panel.list) return;
+    Panel.list.innerHTML = '';
+    // Mostra primeiro PDFs (topo), depois vetores (abaixo)
+    var arr = Panel.layers.slice();
+    arr.sort(function(a,b){
+      if(a.kind===b.kind) return 0;
+      return a.kind==='pdf' ? -1 : 1;
+    });
+    arr.forEach(function(it, i){
+      var row = document.createElement('div');
+      row.className = 'layer-item';
+      row.innerHTML = ''
+       + '<button class="eye" title="Visibilidade">'+(it.visible? '👁️' : '🚫')+'</button>'
+       + '<div class="name" title="'+it.name+'">'+it.name+'<span class="kind">'+(it.kind==='pdf'?'[PDF]':'[Dados]')+'</span></div>'
+       + '<div class="rowbtns">'
+       + '  <button class="up" title="Subir">▲</button>'
+       + '  <button class="down" title="Descer">▼</button>'
+       + '  <button class="del" title="Remover">🗑️</button>'
+       + '</div>';
+      Panel.list.appendChild(row);
+      var eye = row.querySelector('.eye'), up = row.querySelector('.up'), down = row.querySelector('.down'), del = row.querySelector('.del');
+      eye.onclick = function(){ setVisible(it.id, !it.visible); render(); };
+      up.onclick = function(){ reorder(it.id, 'up'); };
+      down.onclick = function(){ reorder(it.id, 'down'); };
+      del.onclick = function(){ removeLayerItem(it.id); };
+    });
+  }
+
+  // ============ HOOKS ============
+  function tryWire(){
+    if(!(window.E && E.map)){ setTimeout(tryWire, 300); return; }
+    initPanel();
+
+    // Quando um layer é adicionado, tente registrar (apenas se for interessante)
+    E.map.on('layeradd', function(ev){
+      try{
+        var lyr = ev.layer;
+        // ImageOverlay => PDF (assumimos carta)
+        if (window.L && L.ImageOverlay && (lyr instanceof L.ImageOverlay)) {
+          // tenta achar um nome conhecido
+          var name = 'Carta PDF';
+          // se veio de E.pdfLayers, tente chave
+          if (window.E && E.pdfLayers) {
+            for (var k in E.pdfLayers) { if (E.pdfLayers[k] === lyr) { name = k; break; } }
+          }
+          // Não duplique
+          if (!Panel.layers.some(function(x){ return x.layer===lyr; })) addLayer(name, lyr, 'pdf');
+          applyOrder(); render();
+          return;
+        }
+        // GeoJSON/FeatureGroup => dados
+        if (lyr && (lyr.getLayers || lyr.toGeoJSON || lyr instanceof L.FeatureGroup)) {
+          // Evitar registrar grupos internos do Draw
+          var name = lyr.options && lyr.options.name || 'Camada dados';
+          // Não duplique
+          if (!Panel.layers.some(function(x){ return x.layer===lyr; })) addLayer(name, lyr, 'vector');
+          applyOrder(); render();
+        }
+      }catch(e){ console.warn(e); }
+    });
+
+    // se já existirem PDFs carregados antes do hook
+    if (E.pdfLayers){
+      Object.keys(E.pdfLayers).forEach(function(nm){
+        var lyr = E.pdfLayers[nm];
+        if(lyr && !Panel.layers.some(function(x){ return x.layer===lyr; })) addLayer(nm, lyr, 'pdf');
+      });
+      applyOrder(); render();
+    }
+  }
+  tryWire();
+})();
+</script>
+<div id="layerPanel" aria-label="Camadas" role="dialog">
+  <header id="layerPanelHandle">
+    <div class="title"><i class="fa-solid fa-layer-group"></i> Camadas</div>
+    <button id="layerClose" title="Fechar" style="background:rgba(255,255,255,.18);border:0;color:#fff;padding:6px 8px;border-radius:8px;cursor:pointer">✖</button>
+  </header>
+  <div class="body">
+    <div id="layerList"></div>
+    <div class="layer-footer">
+      <button id="layerRefresh" class="btn">Atualizar</button>
+      <button id="layerHideAll" class="btn">Ocultar todas</button>
+      <button id="layerShowAll" class="btn">Exibir todas</button></div>
+  </div></div>
+
+
+
+<script>
+(function(){
+  // util: run when DOM ready
+  function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  function waitFor(pred, cb, timeoutMs=60000, intervalMs=250){
+    const t0 = Date.now();
+    const it = setInterval(()=>{
+      try{
+        if (pred()){
+          clearInterval(it); cb();
+        }else if (Date.now()-t0 > timeoutMs){
+          clearInterval(it);
+          console.warn('Camadas: tempo esgotado aguardando mapa.');
+        }
+      }catch{}
+    }, intervalMs);
+  }
+  ready(function(){
+    waitFor(()=>{
+      return window.L && document.getElementById('map') && !!document.querySelector('.leaflet-pane');
+    }, function initLayersUI(){
+      // tentar obter o mapa existente; vários códigos expõem como E.map
+      let map = (window.E && E.map) ? E.map : null;
+      // fallback: tentar achar via _leaflet_id nos panes
+      if(!map){
+        // Hack: varrer objetos globais à procura de um L.Map
+        for (const k of Object.getOwnPropertyNames(window)){
+          const v = window[k];
+          if(v && v instanceof Object && v.addLayer && v.getPane && v.dragging && v.setView && v.fitBounds){
+            // heurística de L.Map
+            map = v; break;
+          }
+        }
+      }
+      if(!map){ console.warn('Camadas: mapa não encontrado'); return; }
+      // garantir registries
+      if(!window.E) window.E = {};
+      if(!E.pdfLayers) E.pdfLayers = {};
+      if(!E.kmlLayers) E.kmlLayers = {};
+      if(!E.shpLayers) E.shpLayers = {};
+
+      // criar panes para PDF (top/bottom)
+      if (!map.getPane('pdfTop')){
+        map.createPane('pdfTop');   map.getPane('pdfTop').style.zIndex = 645; // acima de overlayPane (400) e markers (600), abaixo de tooltip (650)
+      }
+      if (!map.getPane('pdfBottom')){
+        map.createPane('pdfBottom'); map.getPane('pdfBottom').style.zIndex = 350; // abaixo de vetores
+      }
+
+      // pegar elementos
+      const $ = (id)=>document.getElementById(id);
+      const panel = $('layerPanel'), listEl = $('layerList'), fab = $('layerFab');
+      const btnClose = $('layerClose'), btnRefresh = $('layerRefresh');
+      const btnHideAll = $('layerHideAll'), btnShowAll = $('layerShowAll');
+      const handle = $('layerPanelHandle');
+
+      // tornar painel arrastável
+      (function makeDraggable(box, handle){
+        if(!box || !handle) return;
+        let sx=0, sy=0, ox=0, oy=0, drag=false;
+        const mm=(e)=>{ if(!drag) return; box.style.left = (ox + (e.clientX - sx)) + 'px'; box.style.bottom = 'auto'; box.style.top = (oy + (e.clientY - sy)) + 'px'; };
+        const mu=()=>{ if(!drag) return; drag=false; box.classList.remove('dragging'); document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+        handle.addEventListener('mousedown', e=>{ drag=true; box.classList.add('dragging'); sx=e.clientX; sy=e.clientY; const r=box.getBoundingClientRect(); ox=r.left; oy=r.top; document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu); });
+      })(panel, handle);
+
+      function pdfNames(){ return Object.keys(E.pdfLayers||{}); }
+      function kmlNames(){ return Object.keys(E.kmlLayers||{}); }
+      function shpNames(){ return Object.keys(E.shpLayers||{}); }
+
+      // Recria overlay para mover entre panes
+      function swapPdfPane(name, paneName){
+        const ov = E.pdfLayers?.[name];
+        if(!ov) return;
+        const b = ov.getBounds();
+        const url = ov._dataUrl || ov._url;
+        const opacity = (typeof ov.getOpacity==='function' ? ov.getOpacity() : (ov._opacity ?? 1));
+        try{ map.removeLayer(ov); }catch{}
+        const klass = (ov.options && ov.options.className) ? ov.options.className : 'pdf-overlay';
+        const newOv = L.imageOverlay(url, b, {opacity:opacity, pane: paneName, className: klass}).addTo(map);
+        newOv._dataUrl = url; newOv._opacity = opacity;
+        E.pdfLayers[name] = newOv;
+        if(paneName === 'pdfTop' && newOv.bringToFront) newOv.bringToFront();
+      }
+
+      function setGroupVisible(group, visible){
+        (group||[]).forEach(l=>{
+          try{
+            if(l.setStyle){ l.setStyle({opacity: visible? (l.options.opacity ?? 1) : 0, fillOpacity: visible? (l.options.fillOpacity ?? 0.25) : 0}); }
+            if(l.setOpacity){ l.setOpacity(visible? (l.options.opacity ?? 1) : 0); }
+            if(l._icon){ l._icon.style.display = visible? '' : 'none'; }
+            if(l._path){ l._path.style.display = visible? '' : 'none'; }
+          }catch{}
+        });
+      }
+
+      function render(){
+        if(!listEl) return;
+        const parts = [];
+        pdfNames().forEach(name=>{
+          parts.push(`
+            <div class="layer-item" data-kind="pdf" data-name="${name.replace(/"/g,'&quot;')}">
+              <input type="checkbox" class="vis" checked title="visível">
+              <div class="name"><b>[PDF]</b> ${name}</div>
+              <div class="btns">
+<button class="btn toBelow" title="Enviar para ABAIXO">Abaixo</button>
+                <button class="btn del" title="Remover">Remover</button></div>
+            </div>`);
+        });
+        kmlNames().forEach(name=>{
+          parts.push(`
+            <div class="layer-item" data-kind="kml" data-name="${name.replace(/"/g,'&quot;')}">
+              <input type="checkbox" class="vis" checked title="visível">
+              <div class="name"><b>[KML]</b> ${name}</div>
+              <div class="btns"><button class="btn del" title="Remover">Remover</button></div>
+            </div>`);
+        });
+        shpNames().forEach(name=>{
+          parts.push(`
+            <div class="layer-item" data-kind="shp" data-name="${name.replace(/"/g,'&quot;')}">
+              <input type="checkbox" class="vis" checked title="visível">
+              <div class="name"><b>[SHP]</b> ${name}</div>
+              <div class="btns"><button class="btn del" title="Remover">Remover</button></div>
+            </div>`);
+        });
+        listEl.innerHTML = parts.join('');
+
+        listEl.querySelectorAll('.layer-item').forEach(row=>{
+          const kind = row.getAttribute('data-kind');
+          const name = row.getAttribute('data-name');
+          const vis = row.querySelector('.vis');
+          const btnTop = row.querySelector('.toTop');
+          const btnBelow = row.querySelector('.toBelow');
+          const btnDel = row.querySelector('.del');
+
+          if(vis) vis.addEventListener('change', ()=>{
+            if(kind==='pdf'){
+              const ov = E.pdfLayers?.[name]; if(!ov) return;
+              const op = (typeof ov.getOpacity==='function' ? ov.getOpacity() : (ov._opacity ?? 1));
+              ov.setOpacity(vis.checked? op : 0);
+            }else if(kind==='kml'){
+              const entry = E.kmlLayers?.[name]; if(!entry) return;
+              setGroupVisible(entry.layers, vis.checked); entry.visible = !!vis.checked;
+            }else if(kind==='shp'){
+              const pack = E.shpLayers?.[name]; if(!pack) return;
+              setGroupVisible(pack, vis.checked);
+            }
+          });
+          if(btnTop) btnTop.addEventListener('click', ()=> swapPdfPane(name,'pdfTop'));
+          if(btnBelow) btnBelow.addEventListener('click', ()=> swapPdfPane(name,'pdfBottom'));
+          if(btnDel) btnDel.addEventListener('click', ()=>{
+            if(kind==='pdf'){
+              const ov = E.pdfLayers?.[name]; if(ov){ try{map.removeLayer(ov);}catch{} delete E.pdfLayers[name]; }
+            }else if(kind==='kml'){
+              const entry = E.kmlLayers?.[name]; if(entry){ (entry.layers||[]).forEach(l=>{ try{ E.drawn?.removeLayer(l); }catch{} }); delete E.kmlLayers[name]; }
+            }else if(kind==='shp'){
+              const pack = E.shpLayers?.[name]; if(pack){ (pack||[]).forEach(l=>{ try{ E.drawn?.removeLayer(l); }catch{} }); delete E.shpLayers[name]; }
+            }
+            render();
+          });
+        });
+      }
+
+      if(fab){ fab.addEventListener('click', ()=>{ panel.style.display = (panel.style.display==='none'||!panel.style.display)?'block':'none'; if(panel.style.display==='block') render(); }); }
+      if(btnClose){ btnClose.addEventListener('click', ()=> panel.style.display='none'); }
+      if(btnRefresh){ btnRefresh.addEventListener('click', render); }
+      if(btnHideAll){ btnHideAll.addEventListener('click', ()=>{ listEl.querySelectorAll('.layer-item .vis').forEach(c=>{ if(c.checked){ c.checked=false; c.dispatchEvent(new Event('change')); } }); }); }
+      if(btnShowAll){ btnShowAll.addEventListener('click', ()=>{ listEl.querySelectorAll('.layer-item .vis').forEach(c=>{ if(!c.checked){ c.checked=true; c.dispatchEvent(new Event('change')); } }); }); }
+
+      // PDFs já existentes: forçar ficar no topo inicialmente
+      Object.keys(E.pdfLayers||{}).forEach(name=> swapPdfPane(name,'pdfTop'));
+
+      // Observador simples: quando usuário importar novos PDFs pelo seu código,
+      // eles entram em E.pdfLayers; atualizamos a UI quando o painel estiver aberto.
+      const rInt = setInterval(()=>{ if(panel.style.display==='block') render(); }, 1000);
+    });
+  });
+})();
+</script>
+
+
+
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  ready(function(){
+    if(!window.L || !window.E || !E.map) return;
+    const $ = (id)=>document.getElementById(id);
+    const UI = { list: $('layerList'), lockPdf: $('lockPdfTop') };
+
+    // Ensure panes for ordering
+    if (!E.map.getPane('panePDF')){
+      const p = E.map.createPane('panePDF'); p.style.zIndex = '2147483600'; // super topo
+    }
+    const vectorBaseZ = 1000;
+    function paneForIndex(i){
+      const id='paneVector-'+i;
+      if(!E.map.getPane(id)){
+        const p = E.map.createPane(id);
+        p.style.zIndex = String(vectorBaseZ + i*5);
+      } else {
+        E.map.getPane(id).style.zIndex = String(vectorBaseZ + i*5);
+      }
+      return id;
+    }
+
+    // Stack = [{id,name,type,layers,visible,ts}]
+    E._stack = E._stack || [];
+    let nextId = E._stack.length ? Math.max(...E._stack.map(x=>parseInt((x.id||'0').replace(/\D/g,''))||0))+1 : 1;
+
+    function ensureEntry(name, type, layers){
+      if(!name || !layers || !layers.length) return;
+      let it = E._stack.find(x=>x.name===name && x.type===type);
+      if(!it){
+        it = { id: 'L'+(nextId++), name, type, layers: layers.slice(), visible: true, ts: Date.now() };
+        // Inserção respeitando PDFs no topo quando lock ativo
+        if(UI.lockPdf?.checked && type==='pdf'){
+          E._stack.push(it);
+        } else if(UI.lockPdf?.checked && type!=='pdf'){
+          const firstPdf = E._stack.findIndex(x=>x.type==='pdf');
+          if(firstPdf===-1) E._stack.push(it); else E._stack.splice(firstPdf,0,it);
+        } else {
+          E._stack.push(it);
+        }
+      }else{
+        // atualiza referência de layers (ex: PDF recriado ao trocar pane)
+        it.layers = layers.slice();
+      }
+    }
+
+    function syncFromRegistries(){
+      // PDFs
+      Object.entries(E.pdfLayers||{}).forEach(([name,ov])=>{
+        if(ov) ensureEntry(name, 'pdf', [ov]);
+      });
+      // KML
+      Object.entries(E.kmlLayers||{}).forEach(([name,entry])=>{
+        const arr = (entry && entry.layers) ? entry.layers.filter(Boolean) : [];
+        if(arr.length) ensureEntry(name, 'kml', arr);
+      });
+      // SHP
+      Object.entries(E.shpLayers||{}).forEach(([name,arr])=>{
+        const layers = Array.isArray(arr) ? arr.filter(Boolean) : [];
+        if(layers.length) ensureEntry(name, 'shp', layers);
+      });
+    }
+
+    function applyOrdering(){
+      // Lock: PDFs sempre por último na lista lógica (que será renderizada reversed), o que os mantém no topo visual
+      if(UI.lockPdf?.checked){
+        const pdfs = E._stack.filter(x=>x.type==='pdf');
+        const others = E._stack.filter(x=>x.type!=='pdf');
+        E._stack = [...others, ...pdfs];
+      }
+      E._stack.forEach((item, idx)=>{
+        const paneId = (item.type==='pdf') ? 'panePDF' : paneForIndex(idx);
+        item.layers.forEach(l=>{
+          try{
+            l.options = l.options || {}; l.options.pane = paneId;
+            if(E.map.hasLayer(l)){ E.map.removeLayer(l); }
+            l.addTo(E.map);
+            if(item.type==='pdf' && l.getElement()) l.getElement().style.zIndex='2147483600';
+          }catch(e){}
+        });
+      });
+    }
+
+    function renderList(){
+      if(!UI.list) return;
+      UI.list.innerHTML='';
+      const items=[...E._stack].reverse(); // topo->baixo
+      items.forEach(item=>{
+        const li=document.createElement('li');
+        li.className='layer-item'; li.setAttribute('draggable','true'); li.dataset.id=item.id;
+        li.innerHTML =
+          '<span class="name" title="'+item.name+'">'+item.name+'</span>'+
+          '<span class="muted">'+item.type.toUpperCase()+'</span>'+
+          '<button class="eye">'+(item.visible?'👁️':'🚫')+'</button>'+
+          '<i class="fa-solid fa-grip-vertical drag-handle" title="Arraste para reordenar"></i>';
+
+        // visibilidade
+        li.querySelector('.eye').addEventListener('click',()=>{
+          item.visible=!item.visible;
+          li.querySelector('.eye').textContent=item.visible?'👁️':'🚫';
+          item.layers.forEach(l=>{
+            try{ item.visible ? l.addTo(E.map) : E.map.removeLayer(l); }catch{}
+          });
+        });
+        // zoom ao nome
+        li.querySelector('.name').addEventListener('click',()=>{
+          try{ const fg=L.featureGroup(item.layers); const b=fg.getBounds(); if(b && b.isValid()) E.map.fitBounds(b,{padding:[16,16]}); }catch{}
+        });
+        // drag n drop
+        li.addEventListener('dragstart', e=>{
+          e.dataTransfer.setData('text/plain', item.id);
+          e.dataTransfer.effectAllowed='move';
+        });
+        li.addEventListener('dragover', e=>{ e.preventDefault(); li.classList.add('drag-over'); });
+        li.addEventListener('dragleave', ()=> li.classList.remove('drag-over'));
+        li.addEventListener('drop', e=>{
+          e.preventDefault(); li.classList.remove('drag-over');
+          const draggedId = e.dataTransfer.getData('text/plain');
+          if(!draggedId || draggedId===item.id) return;
+          const stack = E._stack, ui=[...stack].reverse();
+          const fromUI = ui.findIndex(x=>x.id===draggedId);
+          const toUI   = ui.findIndex(x=>x.id===item.id);
+          const moving = stack.splice(stack.length-1-fromUI,1)[0];
+          stack.splice(stack.length-1-toUI,0,moving);
+          renderList(); applyOrdering();
+        });
+
+        UI.list.appendChild(li);
+      });
+    }
+
+    // Hook para quando seu código importar novos dados
+    function refresh(){
+      syncFromRegistries();
+      applyOrdering();
+      renderList();
+    }
+
+    // Primeira render
+    refresh();
+    // Observador simples
+    setInterval(refresh, 1200);
+
+    // Checkbox lock
+    if(UI.lockPdf){ UI.lockPdf.addEventListener('change', ()=>{ applyOrdering(); renderList(); }); }
+  });
+})();
+</script>
+
+
+<script>
+/* === AGRO LAYERS UI: Lista Arrastável + Ordem de Z (patch assertivo) === */
+(function(){
+  'use strict';
+  function mapRef(){ return window.__leafletMap || (window.L && L._lastMap) || null; }
+  // Hook para capturar mapa
+  if (window.L && L.Map && !L.Map.__agroHooked) {
+    L.Map.__agroHooked = true;
+    L.Map.addInitHook(function(){ try{ window.__leafletMap = this; }catch(_){} });
+  }
+  const REG = (window.AGRO_LAYERS && window.AGRO_LAYERS._REG) ? window.AGRO_LAYERS._REG : new Map();
+  let ORDER = window.__AGRO_ORDER || [];
+  window.__AGRO_ORDER = ORDER;
+  const API = window.AGRO_LAYERS || (window.AGRO_LAYERS = {});
+  API._REG = REG;
+
+  function toList(layer){ if(!layer) return []; if(layer.eachLayer){ const arr=[]; try{layer.eachLayer(l=>arr.push(l));}catch(_){} return arr.length?arr:[layer]; } return [layer]; }
+  function inferKind(layer){
+    try{
+      if(layer instanceof L.ImageOverlay && (layer.options && (layer.options.pane||'').includes('agro-carta'))) return 'carta';
+      if(layer._image && layer.getBounds) return 'carta';
+      if(layer._url && /\.pdf($|\?)/i.test(layer._url)) return 'carta';
+      if(layer.feature || layer.getLatLng || layer.getBounds) return 'vetor';
+    }catch(_){}
+    return 'outro';
+  }
+  let uid = 0;
+  API.registerLayer = function(layer, name, kind, id){
+    const _id = id || ('L' + (++uid));
+    const entry = REG.get(_id) || { id:_id, name:name||'Camada', kind:kind||inferKind(layer), layers:[], visible:true };
+    toList(layer).forEach(l => entry.layers.includes(l) ? null : entry.layers.push(l));
+    REG.set(_id, entry);
+    if(!ORDER.includes(_id)) ORDER.push(_id);
+    syncIfUI(); applyOrdering(); return _id;
+  };
+  API.removeById = function(id, m){ const e=REG.get(id); if(!e) return; const map=m||mapRef(); if(map){ e.layers.forEach(l=>{try{map.removeLayer(l);}catch(_){}}); } REG.delete(id); ORDER=ORDER.filter(x=>x!==id); window.__AGRO_ORDER=ORDER; syncIfUI(); applyOrdering(); };
+  API.removeAll = function(){ const m=mapRef(); for(const id of Array.from(REG.keys())) API.removeById(id,m); };
+
+  const listEl = document.getElementById('layerList');
+  const lockPdfEl = document.getElementById('lockPdfTop') || document.getElementById('lockPdf');
+
+  function setLayerZ(layer, z){
+    try{
+      const m = mapRef(); if(!m||!layer) return;
+      const paneName = 'agro-ui-z-' + z;
+      const pane = m.getPane(paneName) || m.createPane(paneName);
+      pane.style.zIndex = String(z);
+      if(layer.options){ layer.options.pane = paneName; }
+      if(typeof layer.setZIndex === 'function'){ layer.setZIndex(z); }
+      if(layer._setPane){ layer._setPane(paneName); }
+      if(m.hasLayer(layer)){ m.removeLayer(layer); }
+      layer.addTo(m);
+      if(layer.bringToFront){ layer.bringToFront(); }
+    }catch(_){}
+  }
+
+  function applyOrdering(){
+    const m = mapRef(); if(!m) return;
+    const lockedPdfTop = !!(lockPdfEl && lockPdfEl.checked);
+    const cartas=[], outros=[];
+    ORDER.forEach(id=>{ const e=REG.get(id); if(!e) return; (e.kind==='carta'?cartas:outros).push(e); });
+    const BASE_OTHER = 1200, BASE_CARTA = lockedPdfTop ? 1500 : 1200;
+    let z = BASE_OTHER;
+    outros.forEach((e)=>{ e.layers.forEach(l=>{ try{ e.visible ? l.addTo(m) : m.removeLayer(l); }catch(_){ } setLayerZ(l, z++); }); });
+    z = BASE_CARTA;
+    cartas.forEach((e)=>{ e.layers.forEach(l=>{ try{ e.visible ? l.addTo(m) : m.removeLayer(l); }catch(_){ } setLayerZ(l, z++); }); });
+    window.dispatchEvent(new Event('agro-rebuilt-z'));
+  }
+  window.__AGRO_applyOrdering = applyOrdering;
+
+  function renderList(){
+    if(!listEl) return;
+    listEl.innerHTML = '';
+    const items = ORDER.map(id => REG.get(id)).filter(Boolean);
+    const visual = items.slice().reverse();
+    visual.forEach(item=>{
+      const li = document.createElement('li');
+      li.className = 'layer-item';
+      li.draggable = true;
+      li.dataset.id = item.id;
+      li.innerHTML = `
+        <span class="drag-handle" title="Arraste para reordenar"><i class="fa-solid fa-grip-vertical"></i></span>
+        <div class="name">${(item.name||'Camada')}</div>
+        <button class="eye" title="Mostrar/ocultar">${item.visible?'👁️':'🚫'}</button>
+        <button class="eye" data-del title="Remover">🗑️</button>
+      `;
+      li.querySelector('.eye').addEventListener('click', ()=>{
+        item.visible = !item.visible;
+        li.querySelector('.eye').textContent = item.visible ? '👁️':'🚫';
+        item.layers.forEach(l=>{ const m=mapRef(); try{ item.visible ? l.addTo(m) : m.removeLayer(l); }catch(_){}});
+        applyOrdering();
+      });
+      li.querySelector('[data-del]').addEventListener('click', ()=>{ API.removeById(item.id); });
+      li.querySelector('.name').addEventListener('click', ()=>{
+        try{ const m=mapRef(); const fg=L.featureGroup(item.layers); const b=fg.getBounds(); if(b && b.isValid()) m.fitBounds(b,{padding:[16,16]}); }catch(_){}
+      });
+      li.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', item.id); e.dataTransfer.effectAllowed = 'move'; });
+      li.addEventListener('dragover', e=>{ e.preventDefault(); li.classList.add('drag-over'); });
+      li.addEventListener('dragleave', ()=> li.classList.remove('drag-over'));
+      li.addEventListener('drop', e=>{
+        e.preventDefault(); li.classList.remove('drag-over');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if(!draggedId || draggedId === item.id) return;
+        const visualIds = ORDER.slice().reverse();
+        const fromIdx = visualIds.indexOf(draggedId);
+        const toIdx   = visualIds.indexOf(item.id);
+        if(fromIdx<0 || toIdx<0) return;
+        const arr = visualIds;
+        const [moved] = arr.splice(fromIdx,1);
+        arr.splice(toIdx,0,moved);
+        ORDER = arr.slice().reverse();
+        window.__AGRO_ORDER = ORDER;
+        applyOrdering(); renderList();
+      });
+      listEl.appendChild(li);
+    });
+  }
+  function syncIfUI(){ try{ renderList(); }catch(_){ } }
+  function syncFromKnown(){
+    const g = window; const m = mapRef(); if(!m) return;
+    try{ const pdfs=(g.E && g.E.pdfLayers)?g.E.pdfLayers:(g.PDF_LAYERS||{}); Object.keys(pdfs||{}).forEach(name=>{ const lyr=pdfs[name]; const id='pdf:'+name; if(!REG.has(id)) API.registerLayer(lyr,name,'carta',id); }); }catch(_){}
+    try{ const kmls=(g.E && g.E.kmlLayers)?g.E.kmlLayers:(g.KML_LAYERS||{}); Object.keys(kmls||{}).forEach(name=>{ const lyr=kmls[name]; const id='kml:'+name; if(!REG.has(id)) API.registerLayer(lyr,name,'vetor',id); }); }catch(_){}
+    try{ const shps=(g.E && g.E.shpLayers)?g.E.shpLayers:(g.SHP_LAYERS||{}); Object.keys(shps||{}).forEach(name=>{ const lyr=shps[name]; const id='shp:'+name; if(!REG.has(id)) API.registerLayer(lyr,name,'vetor',id); }); }catch(_){}
+    try{ const drawn=(g.E && g.E.drawn)?g.E.drawn:null; if(drawn && !REG.has('drawn')) API.registerLayer(drawn,'Desenhos','vetor','drawn'); }catch(_){}
+  }
+  setInterval(function(){ syncFromKnown(); applyOrdering(); renderList(); }, 1000);
+  if(lockPdfEl){ lockPdfEl.addEventListener('change', ()=>{ applyOrdering(); renderList(); }); }
+  window.addEventListener('load', function(){ document.getElementById('foucFix')?.remove(); document.body.style.visibility='visible'; });
+})();
+</script>
+
+
+<script>
+// ==== Robust Guards: avoid init crashes if optional elements are missing ====
+(function(){
+  // Safe bind util
+  window.$id = function(id){ return document.getElementById(id); };
+  window.bindIf = function(id, evt, fn, opts){
+    var el = typeof id === 'string' ? $id(id) : id;
+    if(el && el.addEventListener){ el.addEventListener(evt, fn, opts||false); return true; }
+    return false;
+  };
+  // Fail-soft init error handler (prevent blocking UI)
+  function revealBody(){ try{ document.body.style.visibility='visible'; }catch(_){}
+    var s=document.getElementById('foucFix'); if(s&&s.parentNode){ s.parentNode.removeChild(s); } }
+  window.addEventListener('error', function(e){
+    // evita telas "Falha ao inicializar..." por erros não críticos
+    console.error('[agro-soft-error]', e.message);
+    revealBody();
+  }, { once: false });
+  window.addEventListener('unhandledrejection', function(e){
+    console.error('[agro-soft-rejection]', e.reason);
+    revealBody();
+  });
+  // Se houver função global init, envolvemos com try/catch
+  try{
+    if(window.AGRO && typeof window.AGRO.init === 'function' && !window.AGRO.__wrapped){
+      const orig = window.AGRO.init;
+      window.AGRO.init = async function(){
+        try{ return await orig.apply(this, arguments); }
+        catch(err){ console.error('[AGRO.init]', err); revealBody(); }
+      };
+      window.AGRO.__wrapped = true;
+    }
+  }catch(_){}
+})();
+</script>
 </body>
 </html>
+
+<script>
+// ===== Robust Layer Scanner for "" =====
+(function(){
+  function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  ready(function(){
+    // Try to find the map
+    let map = (window.E && E.map) ? E.map : null;
+    if(!map){
+      for(const k of Object.keys(window)){
+        const v = window[k];
+        if(v && v.addLayer && v.getPane && v.setView && v.fitBounds){ map = v; break; }
+      }
+    }
+    if(!map) return;
+
+    // Registries (if your code already has them, we reuse)
+    if(!window.E) window.E = {};
+    E.pdfLayers = E.pdfLayers || {};
+    E.kmlLayers = E.kmlLayers || {};
+    E.shpLayers = E.shpLayers || {};
+    E._stack = E._stack || [];
+
+    const $ = (id)=>document.getElementById(id);
+    const UI = { list: $('layerList'), lockPdf: $('lockPdfTop') };
+    if(!UI.list) return;
+
+    // Ensure panes
+    if (!map.getPane('panePDF')){ const p = map.createPane('panePDF'); p.style.zIndex='2147483600'; }
+    const vectorBaseZ = 1000;
+    function paneForIndex(i){
+      const id='paneVector-'+i;
+      if(!map.getPane(id)){ const p=map.createPane(id); p.style.zIndex=String(vectorBaseZ + i*5); }
+      else { map.getPane(id).style.zIndex=String(vectorBaseZ + i*5); }
+      return id;
+    }
+
+    // Helper: name generator
+    function nextName(prefix){ let i=1; let n=prefix+' '+i; const used = new Set(Object.keys(E.pdfLayers).concat(Object.keys(E.kmlLayers)).concat(Object.keys(E.shpLayers))); while(used.has(n)) { i++; n=prefix+' '+i; } return n; }
+
+    // Heuristic scan of map._layers to backfill registries if empty
+    function backfill(){
+      try{
+        const layers = map._layers || {};
+        // PDFs: L.ImageOverlay
+        const imgOverlays = Object.values(layers).filter(l => l && l instanceof L.ImageOverlay);
+        imgOverlays.forEach((ov)=>{
+          // if not registered, add with synthetic name
+          const already = Object.values(E.pdfLayers).includes(ov);
+          if(!already){
+            const n = nextName('PDF');
+            E.pdfLayers[n] = ov;
+          }
+        });
+        // GeoJSON groups (KML/SHP)
+        const jsonGroups = Object.values(layers).filter(l => l && l instanceof L.GeoJSON);
+        jsonGroups.forEach((g)=>{
+          // pick a label by pane to guess type
+          const pane = (g.options && g.options.pane) || '';
+          let kind = pane && /shp|zip/i.test(pane) ? 'shp' : 'kml';
+          // store under a synthetic name if not already contained in registries
+          const alreadyK = Object.values(E.kmlLayers).some(e => e.layers && e.layers.includes && e.layers.includes(g));
+          const alreadyS = Object.values(E.shpLayers).some(arr => Array.isArray(arr) && arr.includes(g));
+          if(!alreadyK && !alreadyS){
+            const nm = nextName(kind.toUpperCase());
+            if(kind==='kml'){
+              E.kmlLayers[nm] = {layers:[g], visible:true};
+            }else{
+              E.shpLayers[nm] = [g];
+            }
+          }
+        });
+      }catch(e){}
+    }
+
+    // Stack maintenance
+    function ensureEntry(name,type,layers){
+      if(!name || !layers || !layers.length) return;
+      const found = E._stack.find(x=>x.name===name && x.type===type);
+      if(found){ found.layers = layers.slice(); return; }
+      const item = { id: 'L'+(Math.random()*1e6|0), name, type, layers: layers.slice(), visible:true };
+      if(UI.lockPdf?.checked && type==='pdf'){
+        E._stack.push(item);
+      }else if(UI.lockPdf?.checked && type!=='pdf'){
+        const firstPdf = E._stack.findIndex(x=>x.type==='pdf');
+        if(firstPdf===-1) E._stack.push(item); else E._stack.splice(firstPdf,0,item);
+      }else{
+        E._stack.push(item);
+      }
+    }
+
+    function syncFromRegistries(){
+      backfill();
+      Object.entries(E.pdfLayers).forEach(([n,ov])=>ov && ensureEntry(n,'pdf',[ov]));
+      Object.entries(E.kmlLayers).forEach(([n,entry])=> entry && ensureEntry(n,'kml', (entry.layers||[]).filter(Boolean)));
+      Object.entries(E.shpLayers).forEach(([n,arr])=> ensureEntry(n,'shp', (arr||[]).filter(Boolean)));
+    }
+
+    function applyOrdering(){
+      if(UI.lockPdf?.checked){
+        const pdfs = E._stack.filter(x=>x.type==='pdf');
+        const others = E._stack.filter(x=>x.type!=='pdf');
+        E._stack = [...others, ...pdfs];
+      }
+      E._stack.forEach((item, idx)=>{
+        const paneId = (item.type==='pdf') ? 'panePDF' : paneForIndex(idx);
+        item.layers.forEach(l=>{
+          try{
+            l.options = l.options || {}; l.options.pane = paneId;
+            if(map.hasLayer(l)) map.removeLayer(l);
+            l.addTo(map);
+            if(item.type==='pdf' && l.getElement()) l.getElement().style.zIndex='2147483600';
+          }catch{}
+        });
+      });
+    }
+
+    function renderList(){
+      if(!UI.list) return;
+      UI.list.innerHTML='';
+      const items=[...E._stack].reverse();
+      items.forEach(item=>{
+        const li=document.createElement('li');
+        li.className='layer-item'; li.setAttribute('draggable','true'); li.dataset.id=item.id;
+        li.innerHTML =
+          '<span class="name" title="'+item.name+'">'+item.name+'</span>'+
+          '<span class="muted">'+item.type.toUpperCase()+'</span>'+
+          '<button class="eye">'+(item.visible?'👁️':'🚫')+'</button>'+
+          '<i class="fa-solid fa-grip-vertical drag-handle" title="Arraste para reordenar"></i>';
+        li.querySelector('.eye').addEventListener('click',()=>{
+          item.visible=!item.visible;
+          li.querySelector('.eye').textContent=item.visible?'👁️':'🚫';
+          item.layers.forEach(l=>{ try{ item.visible ? l.addTo(map) : map.removeLayer(l); }catch{} });
+        });
+        li.querySelector('.name').addEventListener('click',()=>{
+          try{ const fg=L.featureGroup(item.layers); const b=fg.getBounds(); if(b && b.isValid()) map.fitBounds(b,{padding:[16,16]}); }catch{}
+        });
+        li.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', item.id); e.dataTransfer.effectAllowed='move'; });
+        li.addEventListener('dragover', e=>{ e.preventDefault(); li.classList.add('drag-over'); });
+        li.addEventListener('dragleave', ()=> li.classList.remove('drag-over'));
+        li.addEventListener('drop', e=>{
+          e.preventDefault(); li.classList.remove('drag-over');
+          const draggedId = e.dataTransfer.getData('text/plain');
+          if(!draggedId || draggedId===item.id) return;
+          const stack = E._stack, ui=[...stack].reverse();
+          const fromUI = ui.findIndex(x=>x.id===draggedId);
+          const toUI   = ui.findIndex(x=>x.id===item.id);
+          const moving = stack.splice(stack.length-1-fromUI,1)[0];
+          stack.splice(stack.length-1-toUI,0,moving);
+          renderList(); applyOrdering();
+        });
+        UI.list.appendChild(li);
+      });
+    }
+
+    function refresh(){ syncFromRegistries(); applyOrdering(); renderList(); }
+    refresh();
+    setInterval(refresh, 1200);
+    if(UI.lockPdf){ UI.lockPdf.addEventListener('change', ()=>{ applyOrdering(); renderList(); }); }
+  });
+})();
+</script>
