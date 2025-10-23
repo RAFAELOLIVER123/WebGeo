@@ -23,6 +23,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>WebGeo - SGC MPSBBB – AgroMap</title>
+
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%232563eb"/><g stroke="white" stroke-width="2" fill="none" opacity="0.9"><ellipse cx="32" cy="32" rx="26" ry="12"/><ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(20 32 32)"/><ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(-20 32 32)"/></g></svg>'>
 <!-- Leaflet & plugins (com defer) -->
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 <script defer="True" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -4224,6 +4226,151 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   }catch(_){}
 })();
 </script>
+
+<!-- ===== AGROMAP PATCH v2: Re-import after delete (no recursive removeLayer / no intervals) ===== -->
+<script>
+(function(){
+  'use strict';
+  function ready(fn){
+    if(document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn);
+  }
+  ready(function(){
+    const get = (id)=>document.getElementById(id);
+    const inputs = [get('pdfInput'), get('kmlInput'), get('shpInput'), get('geojsonInput'), get('projectInput')].filter(Boolean);
+
+    function resetFileInput(inp){
+      try { inp.value = ''; } catch(_) {}
+      if (!inp.value) return; // cleared ok
+      const clone = inp.cloneNode(true);
+      inp.parentNode.replaceChild(clone, inp);
+    }
+
+    inputs.forEach(function(inp){
+      inp.addEventListener('change', function(){
+        setTimeout(function(){ resetFileInput(inp); }, 0);
+      });
+    });
+
+    (function ensureRegistries(){
+      window.E = window.E || {};
+      E.pdfLayers = E.pdfLayers || {};
+      E.kmlLayers = E.kmlLayers || {};
+      E.kmlTexts  = E.kmlTexts  || [];
+      E.shpLayers = E.shpLayers || {};
+    })();
+
+    // IMPORTANT: do NOT call map.removeLayer here to avoid recursion.
+    function deepRemove(layer){
+      if(!layer) return;
+      try{ if(layer.clearLayers) layer.clearLayers(); }catch(_){}
+      try{ if(layer.remove) layer.remove(); }catch(_){}
+      try{ if(layer.off) layer.off(); }catch(_){}
+    }
+
+    function purgeRegistriesForLayer(layer){
+      try{
+        if (E.pdfLayers){
+          Object.keys(E.pdfLayers).forEach(function(k){
+            if (E.pdfLayers[k] === layer){ delete E.pdfLayers[k]; }
+          });
+        }
+        if (E.kmlLayers){
+          Object.keys(E.kmlLayers).forEach(function(name){
+            const entry = E.kmlLayers[name];
+            if (!entry) { delete E.kmlLayers[name]; return; }
+            if (Array.isArray(entry.layers)){
+              entry.layers = entry.layers.filter(function(l){ return l && l !== layer; });
+              if (!entry.layers.length){ delete E.kmlLayers[name]; }
+            } else if (entry === layer){
+              delete E.kmlLayers[name];
+            }
+          });
+        }
+        if (E.shpLayers){
+          Object.keys(E.shpLayers).forEach(function(name){
+            const entry = E.shpLayers[name];
+            if (Array.isArray(entry)){
+              E.shpLayers[name] = entry.filter(function(l){ return l && l !== layer; });
+              if (!E.shpLayers[name].length){ delete E.shpLayers[name]; }
+            } else if (entry === layer){
+              delete E.shpLayers[name];
+            }
+          });
+        }
+      }catch(_){}
+    }
+
+    if (window.L && L.Map && !L.Map.prototype.__agro_rm_patched_v2){
+      const _rm = L.Map.prototype.removeLayer;
+      L.Map.prototype.removeLayer = function(layer){
+        // Call original first to avoid any recursion patterns
+        const ret = _rm.call(this, layer);
+        try{ purgeRegistriesForLayer(layer); }catch(_){}
+        try{ deepRemove(layer); }catch(_){}
+        return ret;
+      };
+      L.Map.prototype.__agro_rm_patched_v2 = true;
+    }
+
+    function clearKMLAll(){
+      const map = (window.E && E.map) || window.__leafletMap;
+      try{
+        if (E.kmlLayers){
+          Object.keys(E.kmlLayers).forEach(function(name){
+            const entry = E.kmlLayers[name];
+            if(!entry) return;
+            if (Array.isArray(entry.layers)) entry.layers.forEach(function(l){ try{ map && map.removeLayer && map.removeLayer(l); }catch(_){} });
+            else { try{ map && map.removeLayer && map.removeLayer(entry); }catch(_){} }
+          });
+          E.kmlLayers = {};
+        }
+        if (Array.isArray(E.kmlTexts)) E.kmlTexts.length = 0;
+        const list = get('kmlList'); if (list) list.innerHTML = '';
+      }catch(_){}
+      const inp = get('kmlInput');
+      if (inp){ resetFileInput(inp); }
+    }
+
+    function clearSHPAll(){
+      const map = (window.E && E.map) || window.__leafletMap;
+      try{
+        if (E.shpLayers){
+          Object.keys(E.shpLayers).forEach(function(name){
+            const entry = E.shpLayers[name];
+            if (Array.isArray(entry)) entry.forEach(function(l){ try{ map && map.removeLayer && map.removeLayer(l); }catch(_){} });
+            else { try{ map && map.removeLayer && map.removeLayer(entry); }catch(_){} }
+          });
+          E.shpLayers = {};
+        }
+        const list = get('shpList'); if (list) list.innerHTML = '';
+      }catch(_){}
+      const inp = get('shpInput');
+      if (inp){ resetFileInput(inp); }
+    }
+
+    const clearKMLBtn = get('clearKML');
+    if (clearKMLBtn && !clearKMLBtn.__wired_v2){
+      clearKMLBtn.addEventListener('click', function(ev){ ev.preventDefault(); clearKMLAll(); });
+      clearKMLBtn.__wired_v2 = true;
+    }
+    const clearSHPBtn = get('clearSHP');
+    if (clearSHPBtn && !clearSHPBtn.__wired_v2){
+      clearSHPBtn.addEventListener('click', function(ev){ ev.preventDefault(); clearSHPAll(); });
+      clearSHPBtn.__wired_v2 = true;
+    }
+
+    // Sanity: ensure accept attributes
+    try {
+      const kml = get('kmlInput'); if(kml && (!kml.accept || !/\.kmz/.test(kml.accept))) kml.setAttribute('accept', '.kml,.kmz');
+      const shp = get('shpInput'); if(shp && (!shp.accept || !/\.shp/.test(shp.accept))) shp.setAttribute('accept', '.zip,.shp,.dbf,.shx,.prj');
+      const pdf = get('pdfInput'); if(pdf && (!pdf.accept || !/\.pdf/.test(pdf.accept))) pdf.setAttribute('accept', '.pdf');
+      const geo = get('geojsonInput'); if(geo && (!geo.accept || !/\.geojson/.test(geo.accept))) geo.setAttribute('accept', '.geojson,.json');
+    } catch(_){}
+  });
+})();
+</script>
+<!-- ===== /PATCH v2 ===== -->
 </body>
 </html>
 
