@@ -2,11 +2,10 @@
 
 <html lang="pt-BR">
 <head>
-<link rel="preconnect" href="https://unpkg.com" crossorigin>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
+<link crossorigin="" href="https://unpkg.com" rel="preconnect"/>
+<link crossorigin="" href="https://cdnjs.cloudflare.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <style id="foucFix">body{visibility:hidden}</style>
 <script id="agroFoucFix">
 // Remove FOUC hider as soon as the DOM is ready or on a hard timeout
@@ -19,12 +18,10 @@
   setTimeout(show, 1500);
 })();
 </script>
-
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>WebGeo - SGC MPS – AgroMap</title>
-
-<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%232563eb"/><g stroke="white" stroke-width="2" fill="none" opacity="0.9"><ellipse cx="32" cy="32" rx="26" ry="12"/><ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(20 32 32)"/><ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(-20 32 32)"/></g></svg>'>
+<link href='data:image/svg+xml,&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"&gt;&lt;circle cx="32" cy="32" r="30" fill="%232563eb"/&gt;&lt;g stroke="white" stroke-width="2" fill="none" opacity="0.9"&gt;&lt;ellipse cx="32" cy="32" rx="26" ry="12"/&gt;&lt;ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(20 32 32)"/&gt;&lt;ellipse cx="32" cy="32" rx="12" ry="26" transform="rotate(-20 32 32)"/&gt;&lt;/g&gt;&lt;/svg&gt;' rel="icon"/>
 <!-- Leaflet & plugins (com defer) -->
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 <script defer="True" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -76,7 +73,6 @@
   } catch(e){ console.warn('[AGRO PERF PATCH]', e); }
 })();
 </script>
-
 <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" rel="stylesheet"/>
 <script defer="True" src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -411,10 +407,48 @@
 
 
 </style>
-
-<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link crossorigin="" href="https://unpkg.com" rel="preconnect"/>
 <script src="https://unpkg.com/leaflet-simple-map-screenshoter@0.8.1/dist/leaflet-simple-map-screenshoter.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.3.0/src/dom-to-image-more.min.js"></script>
+<style>
+/* Crop tool (mask-only) */
+#cropperModal{position:fixed;inset:0;display:none;background:rgba(0,0,0,.65);z-index:9999}
+#cropperModal.open{display:flex;align-items:center;justify-content:center}
+#cropperCard{background:#0f172a;color:#e2e8f0;width:min(960px,92vw);max-height:92vh;border-radius:14px;box-shadow:0 20px 90px rgba(0,0,0,.5);overflow:hidden;border:1px solid rgba(148,163,184,.25)}
+#cropperHeader{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(148,163,184,.2)}
+#cropperBody{display:grid;grid-template-columns:1fr 320px;gap:14px;padding:14px}
+#cropPreview{position:relative;background:#0b1220;border:1px dashed rgba(148,163,184,.35);border-radius:10px;overflow:hidden;min-height:420px}
+#pdfCropCanvas{display:block;max-width:100%}
+#selOverlay{position:absolute;inset:0;pointer-events:auto}
+.kbtn{width:100%;background:#0b1324;color:#e2e8f0;border:1px solid rgba(125,196,255,.25);padding:10px;border-radius:10px;cursor:pointer}
+.kbtn.primary{background:#133b2f;border-color:rgba(74,222,128,.35)}
+.kdim{font-size:12px;color:#e2e8f0;position:absolute;right:8px;bottom:8px;background:rgba(2,6,23,.6);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,.25)}
+</style>
+
+<style id="crop-blue-theme">
+#cropperCard{background:#0c1327;color:#e6edf7;border:1px solid rgba(120,162,255,.25)}
+#cropperHeader{border-bottom:1px solid rgba(120,162,255,.25)}
+#cropPreview{background:#0a1122;border:1px dashed rgba(120,162,255,.35)}
+.kbtn{background:#0a1533;border:1px solid rgba(120,162,255,.35);color:#e6edf7}
+.kbtn.primary{background:#154ec1;border-color:rgba(41,112,255,.55)}
+.kbtn.warn{background:#3b1f1f;border-color:rgba(248,113,113,.35)}
+.kdim{border:1px solid rgba(120,162,255,.35);background:rgba(6,12,32,.65)}
+.leaflet-control .mini{font-size:12px;line-height:1; padding:6px 8px; color:#e6edf7; background:#0a1533; border:1px solid rgba(120,162,255,.35); display:inline-block}
+</style>
+<style>
+/* Oculta os botões de forma (sem quebrar JS) */
+#cropperModal #btnShapeRect,
+#cropperModal #btnShapeEllipse { display: none !important; }
+</style>
+
+<style>
+/* Aumenta a espessura e pegada do controle de transparência (.rng) */
+input.rng{ height: 26px; } /* aumenta área clicável */
+input.rng::-webkit-slider-runnable-track{ height: 8px; }
+input.rng::-moz-range-track{ height: 8px; }
+input.rng::-ms-track{ height: 8px; }
+</style>
+
 </head>
 <body>
 <div id="map"></div>
@@ -445,8 +479,8 @@
   }
 </style>
 <div id="exportBar">
-  <button class="primary" id="btnSavePngHiRes">💾</button>
-  <button class="ghost" id="btnPrintPage">🖨️</button>
+<button class="primary" id="btnSavePngHiRes">💾</button>
+<button class="ghost" id="btnPrintPage">🖨️</button>
 </div>
 <script>
 (function(){
@@ -499,7 +533,6 @@
   else{ document.addEventListener('DOMContentLoaded', wire); }
 })();
 </script>
-
 <!-- Camadas: botão discreto + painel flutuante -->
 <style>
   #layersFab{
@@ -536,10 +569,6 @@
   .eye{ color:#111827 }
   .dragging{ opacity:.96 }
 </style>
-
-
-
-
 <div id="loadingMessage">Carregando mapa…</div>
 <div id="fatalError">Falha ao inicializar. Verifique sua internet e recarregue.</div>
 <aside aria-label="Painel de controles" id="controls">
@@ -623,9 +652,6 @@
           <input accept=".agromap.json,application/json" id="projectInput" style="display:none" type="file"/></label>
 </div>
 </section>
-  </div>
-</section>
-
 </aside>
 <button id="toggleButton" title="Mostrar/ocultar painel"><i class="fas fa-sliders-h"></i></button>
 <div class="leaflet-bottom leaflet-right">
@@ -749,7 +775,7 @@
 <div class="row" style="margin-top:8px;">
 <button class="btn btn-ghost" id="btnAdjustPdf" title="Arrastar carta"><i class="fa-solid fa-arrows-up-down-left-right"></i> Ajustar</button>
 <button class="btn" id="btnApplyPdf" title="Aplicar bounds"><i class="fa-solid fa-check"></i> Aplicar</button>
-<button class="btn btn-danger" id="btnCancelAdjust" title="Cancelar"><i class="fa-solid fa-xmark"></i></button></div>
+<button class="btn" id="btnResetPdf" title="Voltar posição"><i class="fa-solid fa-rotate-left"></i> Voltar posição</button> <button class="btn btn-danger" id="btnCancelAdjust" title="Cancelar"><i class="fa-solid fa-xmark"></i></button></div>
 </div></div>
 </div>
 <script>
@@ -774,7 +800,7 @@
       searchBox:el('searchBox'), searchBtn:el('searchBtn'), gpsBtn:el('gpsBtn'), searchResults:el('searchResults'),
       pdfInput:el('pdfInput'), pdfControls:el('pdfControls'), pdfSelect:el('pdfSelect'),
       extW:el('extW'),extS:el('extS'),extE:el('extE'),extN:el('extN'),
-      lockPdf:el('lockPdf'), btnAdjustPdf:el('btnAdjustPdf'), btnApplyPdf:el('btnApplyPdf'), btnCancelAdjust:el('btnCancelAdjust'),
+      lockPdf:el('lockPdf'), btnAdjustPdf:el('btnAdjustPdf'), btnApplyPdf:el('btnApplyPdf'), btnCancelAdjust:el('btnCancelAdjust'), btnResetPdf:el('btnResetPdf'),
       kmlInput:el('kmlInput'), clearKML:el('clearKML'),
       shpInput:el('shpInput'), clearSHP:el('clearSHP'), shpList:el('shpList'),
       btnPoly:el('btnPoly'), btnRect:el('btnRect'), btnLine:el('btnLine'), btnCircle:el('btnCircle'), btnMarker:el('btnMarker'),
@@ -945,16 +971,63 @@
       function updateInputs(){const lyr=E.pdfLayers[E.activePdf]; if(!lyr)return; setInputsFromBounds(lyr.getBounds());}
       function addOpacityControl(name){
         const wrap=UI.pdfControls; const row=document.createElement('div');
-        row.style.cssText='display:grid;grid-template-columns:140px 44px auto;row-gap:4px;column-gap:8px;align-items:center;margin:6px 0';
-        row.innerHTML=`
-          <div style="grid-column:1/-1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</div>
-          <input class="rng" type="range" min="0" max="1" step="0.1" value="${E.pdfLayers[name]._opacity||1}" style="grid-column:1/2;margin:0">
-          <div class="pct" style="grid-column:2/3;font-size:11px;color:#6b7280;text-align:right">${Math.round((E.pdfLayers[name]._opacity||1)*100)}%</div>
-          <button class="btn btn-danger" title="Remover" style="grid-column:3/4;justify-self:end"><i class="fas fa-trash"></i></button>`;
-        const range=row.querySelector('.rng'),pct=row.querySelector('.pct'),del=row.querySelector('button');
-        range.oninput=()=>{if(E.pdfLayers[name]){E.pdfLayers[name].setOpacity(range.value); E.pdfLayers[name]._opacity=+range.value; pct.textContent=Math.round(range.value*100)+'%';}};
-        del.onclick=()=>{cleanupAdjust();const lyr=E.pdfLayers[name]; if(lyr){try{E.map.removeLayer(lyr);}catch{} delete E.pdfLayers[name];} row.remove(); if(E.activePdf===name)E.activePdf=null; refreshSelect();};
-        wrap.appendChild(row);
+        row.style.cssText='display:grid;grid-template-columns: 3.2fr 56px auto;row-gap:4px;column-gap:8px;align-items:center;margin:6px 0';
+        
+row.innerHTML=`
+  <div style="grid-column:1/-1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</div>
+  <input class="rng" type="range" min="0" max="1" step="0.01" value="${(E.pdfLayers[name]._opacity||1)}" style="grid-column:1/2;margin:0;width:100%">
+  <div class="pct" style="grid-column:2/3;font-size:11px;justify-self:right">${Math.round((E.pdfLayers[name]._opacity||1)*100)}%</div>
+  <div class="btns" style="grid-column:3/4;justify-self:end;display:flex;gap:6px">
+    <button class="btn btn-ghost" data-edit title="Editar"><i class="fas fa-scissors"></i></button>
+    <button class="btn btn-ghost" data-restore title="Restaurar"><i class="fas fa-rotate-left"></i></button>
+    <button class="btn btn-danger" data-del title="Remover"><i class="fas fa-trash"></i></button>
+  </div>`;
+
+        
+const range=row.querySelector('.rng'),
+      pct=row.querySelector('.pct'),
+      del=row.querySelector('[data-del]'),
+      edit=row.querySelector('[data-edit]'),
+      restore=row.querySelector('[data-restore]');
+range.oninput=()=>{
+  if(E.pdfLayers[name]){
+    E.pdfLayers[name].setOpacity(parseFloat(range.value)); 
+    E.pdfLayers[name]._opacity = parseFloat(range.value);
+  }
+  pct.textContent = Math.round(range.value*100)+'%';
+};
+del.onclick=()=>{
+  cleanupAdjust();
+  const lyr=E.pdfLayers[name];
+  try{ if(lyr){ E.map.removeLayer(lyr); } }catch(_){}
+  delete E.pdfLayers[name];
+  row.remove();
+  if(E.activePdf===name) E.activePdf=null;
+  refreshSelect();
+};
+edit.onclick=()=>{
+  try{
+    const ov = E.pdfLayers[name];
+    if(window.__PDF_CROP_TOOL && ov){
+      // abre com a URL original se houver, senão a atual
+      const src = ov.__originalUrl || ov._url;
+      window.__PDF_CROP_TOOL.open(src, name);
+    }
+  }catch(_){}
+};
+restore.onclick=()=>{
+  try{
+    const ov=E.pdfLayers[name];
+    if(ov && ov.__originalUrl){
+      ov.setUrl(ov.__originalUrl);                 // volta à imagem original
+      if(ov.setOpacity){ ov.setOpacity(1); }       // opacidade total
+      ov._opacity = 1;
+      if(range){ range.value = 1; }                // sync UI
+      if(pct){ pct.textContent = '100%'; }
+    }
+  }catch(_){}
+};
+wrap.appendChild(row);
       }
       function cleanupAdjust(){
         if(adjustRect){
@@ -991,9 +1064,41 @@
               await page.render({canvasContext:ctx,viewport}).promise;
               const url=canvas.toDataURL();
 
-              if(E.pdfLayers[name])E.map.removeLayer(E.pdfLayers[name]);
+              
+
+try{ if(window.__PDF_CROP_TOOL){ window.__PDF_CROP_TOOL.open(url, name); } }catch(e){}
+if(window.__PDF_CROP_TOOL){ try{ window.__lastPdfDataURL=url; window.__PDF_CROP_TOOL.open(url, name); }catch(e){} }
+if(E.pdfLayers[name])E.map.removeLayer(E.pdfLayers[name]);
               const ov=L.imageOverlay(url,bounds,{ pane:'agro-carta', opacity:1, pane:'agro-carta'}).addTo(E.map);
-              ov._dataUrl=url; ov._opacity=1; E.pdfLayers[name]=ov; E.activePdf=name;
+              
+
+
+
+              try{ if(!ov.__originalBounds){ ov.__originalBounds = bounds; } }catch(_){}try{
+  if(window.__PDF_CROP_TOOL){
+    if(!ov.__originalUrl){ ov.__originalUrl = (typeof url!=='undefined'?url:(window.__lastPdfDataURL||ov._url)); }
+    window.__PDF_CROP_TOOL.attachTarget({
+      set:function(u,newBounds){ try{ ov.setUrl(u); if(newBounds) ov.setBounds(newBounds);}catch(e){} },
+      getBounds:function(){ try{return ov.getBounds();}catch(e){return null;} }
+    });
+    if(!ov.__editControl){
+      const EditCtl = L.Control.extend({
+        onAdd: function(map){
+          const c = L.DomUtil.create('div','leaflet-bar');
+          c.style.background = '#0a1533'; c.style.border = '1px solid rgba(120,162,255,.35)'; c.style.borderRadius='8px'; c.style.overflow='hidden';
+         
+          L.DomEvent.on(b1,'click',function(e){ L.DomEvent.preventDefault(e); try{ window.__PDF_CROP_TOOL.open(ov.__originalUrl || ov._url, 'PDF'); }catch(err){} });
+          L.DomEvent.on(b2,'click',function(e){ L.DomEvent.preventDefault(e); try{ if(ov.__originalUrl) ov.setUrl(ov.__originalUrl); if(ov.setOpacity){ov.setOpacity(1);} ov._opacity=1; }catch(err){} });
+          return c;
+        }, onRemove: function(map){}
+      });
+      ov.__editControl = new EditCtl({ position: 'topright' }).addTo(E.map);
+    }
+  }
+}catch(e){};
+try{ if(window.__PDF_CROP_TOOL){ window.__PDF_CROP_TOOL.attachTarget({ set:function(u){ try{ ov.setUrl(u); }catch(e){} } }); } }catch(e){}
+if(window.__PDF_CROP_TOOL){ try{ window.__PDF_CROP_TOOL.attachTarget({ set:function(dataURL){ try{ ov.setUrl(dataURL); }catch(e){} }, getBounds:function(){ try{return ov.getBounds();}catch(e){return null;} } }); }catch(e){} }
+ov._dataUrl=url; ov._opacity=1; E.pdfLayers[name]=ov; E.activePdf=name;
               addOpacityControl(name); refreshSelect();
 
               E.map.fitBounds(bounds,{padding:[16,16]}); E.toolbar.style.display='block';
@@ -1031,7 +1136,20 @@
           lyr.setBounds(b); cleanupAdjust(); updateInputs();
         });
         UI.btnCancelAdjust.addEventListener('click',()=>{cleanupAdjust();updateInputs();});
-      }
+      
+        UI.btnResetPdf.addEventListener('click',()=>{
+          const lyr = E.pdfLayers[E.activePdf]; if(!lyr)return;
+          try{
+            // Restaura bounds originais se disponíveis
+            if(lyr.__originalBounds && lyr.setBounds){
+              lyr.setBounds(lyr.__originalBounds);
+              try{ if(E.map) E.map.fitBounds(lyr.__originalBounds); }catch(_){}
+            }
+            // Atualiza inputs do painel
+            try{ if(typeof setInputsFromBounds==='function') setInputsFromBounds(lyr.getBounds()); }catch(_){}
+          }catch(_){}
+        });
+}
       return{bind,addOpacityControl,refreshSelect};
     })();
 
@@ -3398,7 +3516,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   wireMap();
 })();
 </script>
-
 <!-- === Carta: controle de sobreposição (Top/Bottom) === -->
 <style>
   .leaflet-pane.agro-pane-high { z-index: 2000000000 !important; }
@@ -3490,7 +3607,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
 })();
 </script>
 <!-- === /Carta: controle de sobreposição === -->
-
 <!-- Carta Top/Bottom: wiring -->
 <script>
 (function(){
@@ -3527,8 +3643,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   setTimeout(wireCartaToggle, 500);
 })();
 </script>
-
-
 <script>
 (function(){
   var Panel = {
@@ -3710,21 +3824,18 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   tryWire();
 })();
 </script>
-<div id="layerPanel" aria-label="Camadas" role="dialog">
-  <header id="layerPanelHandle">
-    <div class="title"><i class="fa-solid fa-layer-group"></i> Camadas</div>
-    <button id="layerClose" title="Fechar" style="background:rgba(255,255,255,.18);border:0;color:#fff;padding:6px 8px;border-radius:8px;cursor:pointer">✖</button>
-  </header>
-  <div class="body">
-    <div id="layerList"></div>
-    <div class="layer-footer">
-      <button id="layerRefresh" class="btn">Atualizar</button>
-      <button id="layerHideAll" class="btn">Ocultar todas</button>
-      <button id="layerShowAll" class="btn">Exibir todas</button></div>
-  </div></div>
-
-
-
+<div aria-label="Camadas" id="layerPanel" role="dialog">
+<header id="layerPanelHandle">
+<div class="title"><i class="fa-solid fa-layer-group"></i> Camadas</div>
+<button id="layerClose" style="background:rgba(255,255,255,.18);border:0;color:#fff;padding:6px 8px;border-radius:8px;cursor:pointer" title="Fechar">✖</button>
+</header>
+<div class="body">
+<div id="layerList"></div>
+<div class="layer-footer">
+<button class="btn" id="layerRefresh">Atualizar</button>
+<button class="btn" id="layerHideAll">Ocultar todas</button>
+<button class="btn" id="layerShowAll">Exibir todas</button></div>
+</div></div>
 <script>
 (function(){
   // util: run when DOM ready
@@ -3903,9 +4014,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   });
 })();
 </script>
-
-
-
 <script>
 (function(){
   function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
@@ -4056,8 +4164,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   });
 })();
 </script>
-
-
 <script>
 /* === AGRO LAYERS UI: Lista Arrastável + Ordem de Z (patch assertivo) === */
 (function(){
@@ -4188,8 +4294,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   window.addEventListener('load', function(){ document.getElementById('foucFix')?.remove(); document.body.style.visibility='visible'; });
 })();
 </script>
-
-
 <script>
 // ==== Robust Guards: avoid init crashes if optional elements are missing ====
 (function(){
@@ -4225,7 +4329,6 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
   }catch(_){}
 })();
 </script>
-
 <!-- ===== AGROMAP PATCH v2: Re-import after delete (no recursive removeLayer / no intervals) ===== -->
 <script>
 (function(){
@@ -4370,9 +4473,307 @@ font:12px system-ui,-apple-system,Segoe UI,Roboto">
 })();
 </script>
 <!-- ===== /PATCH v2 ===== -->
+<script>
+(function(){
+  // Modal
+  const M=document.createElement('div'); M.innerHTML="<div id=\"cropperModal\" role=\"dialog\" aria-modal=\"true\">  <div id=\"cropperCard\">    <div id=\"cropperHeader\">      <strong>Recortar Carta</strong>      <button id=\"cropperClose\" class=\"kbtn\">Fechar</button>    </div>    <div id=\"cropperBody\">      <div id=\"cropPreview\">        <canvas id=\"pdfCropCanvas\"></canvas>        <canvas id=\"selOverlay\"></canvas>        <div class=\"kdim\" id=\"kdim\">—</div>      </div>      <div style=\"display:grid;gap:10px\">        <button id=\"cropApplyMask\" class=\"kbtn primary\">Aplicar Corte ✂️</button>        <button id=\"cropSendMap\" class=\"kbtn\">Enviar ao mapa 🗺️</button>        <button id=\"btnShapeRect\" class=\"kbtn\">Retângulo</button>        <button id=\"cropReset\" class=\"kbtn\">Limpar Seleção 🧹</button>      </div>    </div>  </div></div>"; document.body.appendChild(M.firstElementChild);
+  const pdfC=document.getElementById('pdfCropCanvas'); const ov=document.getElementById('selOverlay');
+  const ctx=pdfC.getContext('2d'); const octx=ov.getContext('2d');
+  const modal=document.getElementById('cropperModal'); const closeBtn=document.getElementById('cropperClose');
+  const dimEl=document.getElementById('kdim'); const bMask=document.getElementById('cropApplyMask');
+  const bReset=document.getElementById('cropReset'); const bSend=document.getElementById('cropSendMap'); const bShapeRect=document.getElementById('btnShapeRect'); const bShapeEllipse=document.getElementById('btnShapeEllipse'); const bShapePoly=document.getElementById('btnShapePoly');
+
+  
+  // modos de seleção
+  S.shapeMode = S.shapeMode || 'rect';
+  if(bShapeRect){ bShapeRect.onclick = ()=>{ S.shapeMode='rect'; }; }
+  if(bShapeEllipse){ bShapeEllipse.onclick = ()=>{ S.shapeMode='ellipse'; }; }
+  if(bShapePoly){ bShapePoly.onclick = ()=>{ S.shapeMode='poly'; S.poly=[]; }; }
+const S={ srcURL:null, name:'PDF', cropRect:null, urlMask:null, imgW:0, imgH:0, scaleX:1, scaleY:1 };
+  let __target=null; // overlay attach
+
+  function openModal(){ modal.classList.add('open'); } function closeModal(){ modal.classList.remove('open'); }
+  closeBtn.addEventListener('click', closeModal);
+
+  function clearOverlay(){ octx.clearRect(0,0,ov.width,ov.height); S.cropRect=null; dimEl.textContent='—'; }
+  function drawSelRect(r){ const {x,y,w,h}=r; octx.clearRect(0,0,ov.width,ov.height); octx.fillStyle='rgba(0,0,0,.45)'; octx.fillRect(0,0,ov.width,ov.height); octx.save(); octx.globalCompositeOperation='destination-out'; octx.fillStyle='#000'; octx.fillRect(x,y,w,h); octx.restore(); octx.strokeStyle='#7dc4ff'; octx.setLineDash([6,4]); octx.lineWidth=2; octx.strokeRect(x,y,w,h); dimEl.textContent=w+'×'+h+'px'; }
+
+  (function(){ let down=false, start={x:0,y:0}; function toCanvas(evt){ const r=ov.getBoundingClientRect(); const sx=ov.width/r.width, sy=ov.height/r.height; return { x:Math.max(0,Math.min(ov.width,(evt.clientX-r.left)*sx)), y:Math.max(0,Math.min(ov.height,(evt.clientY-r.top)*sy)) }; }
+    ov.addEventListener('mousedown',e=>{down=true; start=toCanvas(e);});
+    ov.addEventListener('mousemove',e=>{ if(!down) return; const c=toCanvas(e); const rect={x:Math.min(start.x,c.x),y:Math.min(start.y,c.y),w:Math.abs(c.x-start.x),h:Math.abs(c.y-start.y)}; S.cropRect=rect; drawSelRect(rect); });
+    window.addEventListener('mouseup',()=>down=false); ov.addEventListener('dblclick', clearOverlay);
+  })();
+
+  
+  // --- Modos de forma para seleção ---
+  // Substitui os botões "Baixar PNG" e "Limpar Seleção" por Retângulo/Elipse/Polígono.
+  (function(){
+    const btnRect = document.getElementById('btnShapeRect');
+    const btnEllipse = document.getElementById('btnShapeEllipse');
+    // cria botão polígono ao lado, se não existir
+    let btnPoly = document.getElementById('btnShapePoly');
+    if(!btnPoly){
+      btnPoly = document.createElement('button');
+      btnPoly.id = 'btnShapePoly';
+      btnPoly.className = 'kbtn';
+      btnPoly.textContent = 'Polígono';
+      const side = (btnEllipse || btnRect)?.parentElement || document;
+      if(side && btnEllipse){ side.insertBefore(btnPoly, btnEllipse.nextSibling); }
+    }
+    // estado
+    S.shapeMode = S.shapeMode || 'rect'; // 'rect' | 'ellipse' | 'poly'
+    S.poly = [];
+    function setActive(b){
+      [btnRect, btnEllipse, btnPoly].forEach(x=>{ if(!x) return; x.style.opacity = (x===b? '1':'0.72'); });
+    }
+    btnRect && (btnRect.onclick = ()=>{ S.shapeMode='rect'; S.poly=[]; setActive(btnRect); ov.clearRect(0,0,overlay.width,overlay.height); });
+    btnEllipse && (btnEllipse.onclick = ()=>{ S.shapeMode='ellipse'; S.poly=[]; setActive(btnEllipse); ov.clearRect(0,0,overlay.width,overlay.height); });
+    btnPoly && (btnPoly.onclick = ()=>{ S.shapeMode='poly'; S.poly=[]; setActive(btnPoly); ov.clearRect(0,0,overlay.width,overlay.height); });
+    setActive(S.shapeMode==='rect'?btnRect:S.shapeMode==='ellipse'?btnEllipse:btnPoly);
+
+    // sobrescreve handlers do overlay para dar suporte às formas
+    (function(){
+      let down=false,start={x:0,y:0};
+      function p(e){
+        const r=overlay.getBoundingClientRect();
+        const x=Math.max(0, Math.min(overlay.width, (e.clientX-r.left) * overlay.width/r.width));
+        const y=Math.max(0, Math.min(overlay.height,(e.clientY-r.top)  * overlay.height/r.height));
+        return {x,y};
+      }
+      function drawRect(r){
+        ov.clearRect(0,0,overlay.width,overlay.height);
+        ov.fillStyle = 'rgba(0,0,0,.45)';
+        ov.fillRect(0,0,overlay.width,overlay.height);
+        ov.save(); ov.globalCompositeOperation='destination-out';
+        if(S.shapeMode==='ellipse'){
+          ov.beginPath();
+          ov.ellipse(r.x + r.w/2, r.y + r.h/2, Math.abs(r.w/2), Math.abs(r.h/2), 0, 0, Math.PI*2);
+          ov.fill();
+          ov.restore();
+          ov.strokeStyle='#7dc4ff'; ov.setLineDash([6,4]); ov.lineWidth=2;
+          ov.beginPath();
+          ov.ellipse(r.x + r.w/2, r.y + r.h/2, Math.abs(r.w/2), Math.abs(r.h/2), 0, 0, Math.PI*2);
+          ov.stroke();
+        } else {
+          ov.fillStyle='#000'; ov.fillRect(r.x,r.y,r.w,r.h); ov.restore();
+          ov.strokeStyle='#7dc4ff'; ov.setLineDash([6,4]); ov.lineWidth=2; ov.strokeRect(r.x,r.y,r.w,r.h);
+        }
+        dim.textContent = Math.round(r.w)+'×'+Math.round(r.h)+'px';
+      }
+      function drawPoly(points){
+        ov.clearRect(0,0,overlay.width,overlay.height);
+        ov.fillStyle = 'rgba(0,0,0,.45)';
+        ov.fillRect(0,0,overlay.width,overlay.height);
+        if(points.length<2) return;
+        ov.save(); ov.globalCompositeOperation='destination-out';
+        ov.beginPath();
+        ov.moveTo(points[0].x, points[0].y);
+        for(let i=1;i<points.length;i++) ov.lineTo(points[i].x, points[i].y);
+        ov.closePath(); ov.fill(); ov.restore();
+        ov.strokeStyle='#7dc4ff'; ov.setLineDash([6,4]); ov.lineWidth=2;
+        ov.beginPath();
+        ov.moveTo(points[0].x, points[0].y);
+        for(let i=1;i<points.length;i++) ov.lineTo(points[i].x, points[i].y);
+        ov.closePath(); ov.stroke();
+        dim.textContent = points.length+' pts';
+      }
+      overlay.onmousedown = (e)=>{
+        const pt = p(e);
+        if(S.shapeMode==='poly'){
+          S.poly.push(pt); drawPoly(S.poly); return;
+        } else {
+          down=true; start=pt; S.cropRect=null;
+        }
+      };
+      overlay.onmouseup = ()=>{ down=false; };
+      overlay.onmousemove = (e)=>{
+        if(S.shapeMode==='poly'){ return; }
+        if(!down) return;
+        const c = p(e);
+        const rect = { x:Math.min(start.x,c.x), y:Math.min(start.y,c.y), w:Math.abs(c.x-start.x), h:Math.abs(c.y-start.y) };
+        S.cropRect = rect; drawRect(rect);
+      };
+      overlay.ondblclick = ()=>{ S.poly=[]; S.cropRect=null; ov.clearRect(0,0,overlay.width,overlay.height); dim.textContent='—'; };
+      window.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ S.poly=[]; S.cropRect=null; ov.clearRect(0,0,overlay.width,overlay.height); dim.textContent='—'; }});
+      // expõe util
+      window.__drawHelpers = { drawRect, drawPoly };
+    })();
+  })();
+function ensureSelection(){ if(S.shapeMode==='poly'){ if(!S.poly||S.poly.length<3){ alert('Desenhe um polígono com pelo menos 3 pontos.'); return false; } return true; } if(!S.cropRect||S.cropRect.w<4||S.cropRect.h<4){ alert('Selecione uma região válida.'); return false; } return true; }
+
+  // Modo máscara: mantém tamanho e posição exatos; áreas fora ficam transparentes
+  function applyMaskNow(){ if(!ensureSelection()) return; 
+    const img=new Image(); img.onload=()=>{ 
+      const sx=S.scaleX, sy=S.scaleY; 
+      const out=document.createElement('canvas'); out.width=S.imgW; out.height=S.imgH;
+      const c=out.getContext('2d'); c.imageSmoothingEnabled=true; c.clearRect(0,0,out.width,out.height);
+      // 1) Desenha a imagem inteira
+      c.drawImage(img, 0, 0);
+      // 2) Máscara conforme forma
+      c.globalCompositeOperation='destination-in';
+      c.fillStyle='rgba(0,0,0,1)';
+      if(S.shapeMode==='poly' && S.poly && S.poly.length>=3){
+        c.beginPath();
+        c.moveTo(Math.round(S.poly[0].x*sx), Math.round(S.poly[0].y*sy));
+        for(let i=1;i<S.poly.length;i++) c.lineTo(Math.round(S.poly[i].x*sx), Math.round(S.poly[i].y*sy));
+        c.closePath(); c.fill();
+      } else if(S.shapeMode==='ellipse' && S.cropRect){
+        const rx=Math.round(S.cropRect.x*sx), ry=Math.round(S.cropRect.y*sy);
+        const rw=Math.round(S.cropRect.w*sx), rh=Math.round(S.cropRect.h*sy);
+        c.save(); c.beginPath();
+        c.ellipse(rx+rw/2, ry+rh/2, Math.abs(rw/2), Math.abs(rh/2), 0, 0, Math.PI*2); c.clip();
+        c.clearRect(0,0,0,0); // noop to enforce clip
+        c.restore();
+        // draw a filled ellipse into destination-in mask
+        c.beginPath(); c.ellipse(rx+rw/2, ry+rh/2, Math.abs(rw/2), Math.abs(rh/2), 0, 0, Math.PI*2); c.fill();
+      } else if(S.cropRect){
+        const rx=Math.round(S.cropRect.x*sx), ry=Math.round(S.cropRect.y*sy);
+        const rw=Math.round(S.cropRect.w*sx), rh=Math.round(S.cropRect.h*sy);
+        c.fillRect(rx, ry, rw, rh);
+      }
+      S.urlMask=out.toDataURL('image/png');
+      alert('Recorte aplicado (máscara).');
+    }; img.src=S.srcURL; 
+   }
+  bMask.addEventListener('click', ()=>{ applyMaskNow(); });
+  
+  bSend.addEventListener('click', ()=>{ 
+    // Garante que teremos uma imagem para enviar: aplica máscara se houver seleção; senão usa a original
+    if(!S.urlMask){
+      if(S.cropRect){ 
+        applyMaskNow(); // cria S.urlMask a partir do recorte atual
+      } else {
+        S.urlMask = S.srcURL || null;
+      }
+    }
+    const dataURL = S.urlMask;
+    if(!dataURL){ alert('Carregue um PDF antes.'); return; }
+    // Resolve target: overlay anexado ou o overlay ativo do app
+    let target = __target;
+    if(!target && window.E && E.pdfLayers && E.activePdf && E.pdfLayers[E.activePdf]){ 
+      const ov = E.pdfLayers[E.activePdf];
+      target = { 
+        set:function(url){ try{ ov.setUrl(url); }catch(e){} }, 
+        getBounds:function(){ try{ return ov.getBounds(); }catch(e){ return null; } } 
+      };
+    }
+    if(!target){ alert('Destino do mapa não anexado.'); return; }
+    target.set(dataURL); // mantém bounds exatamente
+  });
+bShapeRect.addEventListener('click', ()=>{ if(!S.urlMask){ alert('Nada para baixar.'); return; } const a=document.createElement('a'); a.href=S.urlMask; a.download='recorte.png'; a.click(); });
+
+  // API pública
+  window.__PDF_CROP_TOOL={ 
+    open: function(dataURL, layerName){ 
+      const img=new Image(); img.onload=()=>{ 
+        S.srcURL=dataURL; S.name=layerName||'PDF'; S.imgW=img.naturalWidth; S.imgH=img.naturalHeight; 
+        const scale=Math.min(940/img.width, 720/img.height, 1.0); 
+        pdfC.width=Math.round(img.width*scale); pdfC.height=Math.round(img.height*scale); 
+        ov.width=pdfC.width; ov.height=pdfC.height; 
+        S.scaleX = img.width / pdfC.width; S.scaleY = img.height / pdfC.height;
+        ctx.clearRect(0,0,pdfC.width,pdfC.height); ctx.drawImage(img,0,0,pdfC.width,pdfC.height); 
+        clearOverlay(); openModal();
+      }; img.src=dataURL; 
+    },
+    attachTarget: function(target){ __target=target; }
+  };
+})();
+</script>
+<script id="pdf-crop-tool-mask-only">
+document.addEventListener('DOMContentLoaded', function() {
+  if(!document.getElementById('cropperModal')) {
+    const wrap = document.createElement('div'); wrap.innerHTML = '<div id="cropperModal" role="dialog" aria-modal="true">\n  <div id="cropperCard">\n    <div id="cropperHeader">\n      <strong>Recortar Carta</strong>\n      <button id="cropperClose" class="kbtn" style="width:auto">Fechar</button>\n    </div>\n    <div id="cropperBody" style="display:grid;grid-template-columns:1fr 320px;gap:14px;padding:14px">\n      <div id="cropPreview" style="position:relative;background:#0b1220;border:1px dashed rgba(148,163,184,.35);border-radius:10px;overflow:hidden;height:70vh;min-height:360px">\n        <canvas id="pdfCropCanvas"></canvas>\n        <canvas id="selOverlay" style="position:absolute;inset:0;pointer-events:auto"></canvas>\n        <div class="kdim" id="kdim" style="position:absolute;right:8px;bottom:8px;background:rgba(2,6,23,.6);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,.25);font-size:12px">—</div>\n      </div>\n      <div style="display:grid;gap:10px">\n        <button id="cropApplyMask" class="kbtn primary">Aplicar Corte ✂️</button>\n        <button id="cropSendMap" class="kbtn">Enviar ao mapa 🗺️</button>\n        <button id="btnShapeRect" class="kbtn">Retângulo</button>\n        <button id="btnShapeEllipse" class="kbtn">Limpar Seleção 🧹</button> <button id="cropReset" class="kbtn">Restaurar</button>\n      </div>\n    </div>\n  </div>\n</div>'; document.body.appendChild(wrap.firstElementChild);
+  }
+  const modal=document.getElementById('cropperModal');
+  const pdfC=document.getElementById('pdfCropCanvas'); const ov=document.getElementById('selOverlay');
+  const ctx=pdfC.getContext('2d'); const octx=ov.getContext('2d');
+  const closeBtn=document.getElementById('cropperClose'); const dimEl=document.getElementById('kdim');
+  const bMask=document.getElementById('cropApplyMask'); const bSend=document.getElementById('cropSendMap');
+  const bShapeRect=document.getElementById('btnShapeRect'); const bShapeEllipse=document.getElementById('btnShapeEllipse'); const bShapePoly=document.getElementById('btnShapePoly'); const bReset=document.getElementById('cropReset');
+  function openModal(){ modal.classList.add('open'); } function closeModal(){ modal.classList.remove('open'); }
+  closeBtn.addEventListener('click', closeModal);
+  const S={ srcURL:null, originalURL:null, name:'PDF', cropRect:null, urlMask:null, imgW:0, imgH:0, scaleX:1, scaleY:1 };
+  let __target=null;
+  function clearOverlay(){ octx.clearRect(0,0,ov.width,ov.height); S.cropRect=null; dimEl.textContent='—'; }
+  function drawSelRect(r){ const x=r.x,y=r.y,w=r.w,h=r.h; octx.clearRect(0,0,ov.width,ov.height); octx.fillStyle='rgba(0,0,0,.30)'; octx.fillRect(0,0,ov.width,ov.height); octx.save(); octx.globalCompositeOperation='destination-out'; octx.fillStyle='#000'; octx.fillRect(x,y,w,h); octx.restore(); octx.strokeStyle='#7dc4ff'; octx.setLineDash([3,2]); octx.lineWidth=1; octx.strokeRect(x,y,w,h); dimEl.textContent=w+'×'+h+'px'; }
+  function toCanvas(evt){ const r=ov.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const sx=ov.width/(r.width*dpr), sy=ov.height/(r.height*dpr); return { x:Math.max(0,Math.min(ov.width,(evt.clientX-r.left)*dpr*sx)), y:Math.max(0,Math.min(ov.height,(evt.clientY-r.top)*dpr*sy)) }; }
+  (function(){ let down=false, start={x:0,y:0}; ov.addEventListener('mousedown',e=>{down=true; start=toCanvas(e);}); ov.addEventListener('mousemove',e=>{ if(!down) return; const c=toCanvas(e); const rect={x:Math.min(start.x,c.x),y:Math.min(start.y,c.y),w:Math.abs(c.x-start.x),h:Math.abs(c.y-start.y)}; S.cropRect=rect; drawSelRect(rect); }); window.addEventListener('mouseup',()=>down=false); ov.addEventListener('dblclick', clearOverlay); })();
+  function ensureSelection(){ if(S.shapeMode==='poly'){ if(!S.poly||S.poly.length<3){ alert('Desenhe um polígono com pelo menos 3 pontos.'); return false; } return true; } if(!S.cropRect||S.cropRect.w<4||S.cropRect.h<4){ alert('Selecione uma região válida.'); return false; } return true; }
+async function applyMask(){ 
+  return new Promise((resolve)=>{ 
+    const img=new Image(); 
+    img.onload=()=>{ 
+      const rx=S.cropRect.x*S.scaleX, ry=S.cropRect.y*S.scaleY, rw=S.cropRect.w*S.scaleX, rh=S.cropRect.h*S.scaleY; 
+      const out=document.createElement('canvas'); out.width=S.imgW; out.height=S.imgH; 
+      const c=out.getContext('2d'); 
+      c.fillStyle='#000'; c.fillRect(rx,ry,rw,rh); 
+      c.globalCompositeOperation='source-in'; 
+      c.drawImage(img,0,0); 
+      S.urlMask=out.toDataURL('image/png'); 
+      resolve(S.urlMask);
+    }; 
+    img.src=S.srcURL; 
+  }); 
+}
+  bMask.addEventListener('click', ()=>{ if(!ensureSelection()) return; const img=new Image(); img.onload=()=>{ const rx=S.cropRect.x*S.scaleX, ry=S.cropRect.y*S.scaleY, rw=S.cropRect.w*S.scaleX, rh=S.cropRect.h*S.scaleY; const out=document.createElement('canvas'); out.width=S.imgW; out.height=S.imgH; const c=out.getContext('2d'); c.fillStyle='#000'; c.fillRect(rx,ry,rw,rh); c.globalCompositeOperation='source-in'; c.drawImage(img,0,0); S.urlMask=out.toDataURL('image/png'); alert('Recorte aplicado.'); }; img.src=S.srcURL; });
+  bSend.addEventListener('click', async ()=>{ try{ if(!S.urlMask){ if(!ensureSelection()) return; await applyMask(); } let target = __target; if(!target && window.E && E.pdfLayers && E.activePdf && E.pdfLayers[E.activePdf]){ const ov = E.pdfLayers[E.activePdf]; target = { set:(u,newB)=>{ try{ ov.setUrl(u); if(newB) ov.setBounds(newB);}catch(e){} }, getBounds:()=>{ try{return ov.getBounds();}catch(e){return null;} } }; } if(!target){ alert('Destino do mapa não anexado.'); return; } target.set(S.urlMask); }catch(e){ console.warn(e); } });
+  bShapeRect.addEventListener('click', ()=>{ if(!S.urlMask){ alert('Nada para baixar.'); return; } const a=document.createElement('a'); a.href=S.urlMask; a.download='recorte.png'; a.click(); });
+  window.__PDF_CROP_TOOL = { open: function(dataURL, layerName){ const img=new Image(); img.onload=function(){ S.srcURL=dataURL; S.originalURL=dataURL; S.name=layerName||'PDF'; S.imgW=img.naturalWidth; S.imgH=img.naturalHeight; function renderPreview(initial){ const box=document.getElementById('cropPreview').getBoundingClientRect(); const maxW=Math.max(200, box.width-24), maxH=Math.max(200, box.height-24); const scale=Math.min(maxW/img.width, maxH/img.height, 1.0); const prevW=pdfC.width||0, prevH=pdfC.height||0; pdfC.width=Math.round(img.width*scale); pdfC.height=Math.round(img.height*scale); ov.width=pdfC.width; ov.height=pdfC.height; S.scaleX=img.width/pdfC.width; S.scaleY=img.height/pdfC.height; ctx.clearRect(0,0,pdfC.width,pdfC.height); ctx.drawImage(img,0,0,pdfC.width,pdfC.height); if(initial){ if(!S.cropRect){ let w=Math.round(pdfC.width*0.55), h=Math.round(pdfC.height*0.55); let x=Math.round((pdfC.width-w)/2), y=Math.round((pdfC.height-h)/2); S.cropRect={x,y,w,h}; } } else if(S.cropRect && prevW>0 && prevH>0){ const kx=pdfC.width/prevW, ky=pdfC.height/prevH; S.cropRect={ x:Math.round(S.cropRect.x*kx), y:Math.round(S.cropRect.y*ky), w:Math.round(S.cropRect.w*kx), h:Math.round(S.cropRect.h*ky) }; } drawSelRect(S.cropRect); } clearOverlay(); openModal(); renderPreview(true); window.addEventListener('resize', ()=>renderPreview(false)); }; img.src=dataURL; }, attachTarget:function(target){ __target=target; } };
+});
+
+// Globais para usar fora (painel/lateral)
+window.__PDF_CROP_TOOL_GLOBAL = {
+  reopenCurrent: function(){
+    try{
+      if(window.E && E.pdfLayers && E.activePdf && E.pdfLayers[E.activePdf]){
+        const ov = E.pdfLayers[E.activePdf];
+        window.__PDF_CROP_TOOL.open(ov.__originalUrl || ov._url, 'PDF');
+      }
+    }catch(e){ console.warn(e); }
+  },
+  restoreCurrent: function(){
+    try{
+      if(window.E && E.pdfLayers && E.activePdf && E.pdfLayers[E.activePdf]){
+        const ov = E.pdfLayers[E.activePdf];
+        ov.setUrl(ov.__originalUrl || ov._url);
+      }
+    }catch(e){ console.warn(e); }
+  }
+};
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    var btn = document.getElementById('cropReset');
+    if (btn && !btn.dataset._wiredReset) {
+      btn.addEventListener('click', function(ev){
+        try {
+          if (typeof clearOverlay === 'function') { 
+            clearOverlay(); 
+            return;
+          }
+        } catch(_){}
+        // Fallback: clear overlay canvas and dimension label
+        try {
+          var ov = document.getElementById('selOverlay');
+          if (ov && ov.getContext) {
+            var octx = ov.getContext('2d');
+            octx.clearRect(0,0,ov.width,ov.height);
+          }
+          var dimEl = document.getElementById('kdim');
+          if (dimEl) dimEl.textContent = '—';
+        } catch(_){}
+      });
+      btn.dataset._wiredReset = '1';
+    }
+  } catch(e){ /* noop */ }
+});
+</script>
+
+
 </body>
 </html>
-
 <script>
 // ===== Robust Layer Scanner for "" =====
 (function(){
