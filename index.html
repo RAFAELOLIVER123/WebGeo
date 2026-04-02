@@ -13147,6 +13147,154 @@ window.__REALIZADO_STATE__ = {
     }catch(_){ }
   }
 
+
+  function getExcelPerfConfig(){
+    try{
+      if(!window.__EXCEL_PERF_CONFIG__){
+        window.__EXCEL_PERF_CONFIG__ = {
+          simplifyTolerance: 0.00003,
+          heavyRowThreshold: 450,
+          heavyPolygonThreshold: 180,
+          polyMinZoomNormal: 12,
+          polyMinZoomHeavy: 15,
+          polyChunkSize: 28
+        };
+      }
+      return window.__EXCEL_PERF_CONFIG__;
+    }catch(_){
+      return {
+        simplifyTolerance: 0.00003,
+        heavyRowThreshold: 450,
+        heavyPolygonThreshold: 180,
+        polyMinZoomNormal: 12,
+        polyMinZoomHeavy: 15,
+        polyChunkSize: 28
+      };
+    }
+  }
+
+  function getExcelPerfState(rows){
+    try{
+      const cfg = getExcelPerfConfig();
+      const arr = Array.isArray(rows) ? rows : [];
+      let polyCount = 0;
+      for(const r of arr){
+        const n = Array.isArray(r && r.__polyEntries) ? r.__polyEntries.length : ((r && r.__poly) ? 1 : 0);
+        polyCount += n;
+      }
+      const heavy = arr.length >= cfg.heavyRowThreshold || polyCount >= cfg.heavyPolygonThreshold;
+      return {
+        rowsCount: arr.length,
+        polygonCount: polyCount,
+        heavy,
+        polygonMinZoom: heavy ? cfg.polyMinZoomHeavy : cfg.polyMinZoomNormal,
+        polyChunkSize: cfg.polyChunkSize
+      };
+    }catch(_){
+      return { rowsCount:0, polygonCount:0, heavy:false, polygonMinZoom:12, polyChunkSize:28 };
+    }
+  }
+
+  function simplifyExcelPolygonLatLngs(latlngs, tolerance){
+    try{
+      const arr = Array.isArray(latlngs) ? latlngs : [];
+      if(arr.length < 8) return arr;
+      if(!(window.turf && typeof window.turf.polygon === 'function' && typeof window.turf.simplify === 'function')) return arr;
+      const ring = [];
+      for(const pt of arr){
+        if(!Array.isArray(pt) || pt.length < 2) continue;
+        const lat = Number(pt[0]), lng = Number(pt[1]);
+        if(!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        ring.push([lng, lat]);
+      }
+      if(ring.length < 4) return arr;
+      const f = ring[0], l = ring[ring.length-1];
+      if(!l || f[0] !== l[0] || f[1] !== l[1]) ring.push([f[0], f[1]]);
+      const poly = turf.polygon([ring]);
+      const simp = turf.simplify(poly, {
+        tolerance: Number.isFinite(tolerance) ? tolerance : getExcelPerfConfig().simplifyTolerance,
+        highQuality: false,
+        mutate: false
+      });
+      const coords = simp && simp.geometry && Array.isArray(simp.geometry.coordinates) ? simp.geometry.coordinates[0] : null;
+      if(!coords || coords.length < 4) return arr;
+      const out = coords.map(pt => [Number(pt[1]), Number(pt[0])]).filter(pt => Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
+      return out.length >= 4 ? out : arr;
+    }catch(_){
+      return latlngs;
+    }
+  }
+
+  function buildExcelPolyClickIndex(){
+    try{
+      const src = Array.isArray(window.excelMarkers) ? window.excelMarkers : [];
+      const cellSize = 36;
+      const idx = new Map();
+      for(const it of src){
+        if(!it || !it.m || typeof it.m.getLatLng !== 'function') continue;
+        const ll = it.m.getLatLng();
+        if(!ll) continue;
+        const p = map.latLngToContainerPoint(ll);
+        const key = `${Math.floor(p.x/cellSize)}:${Math.floor(p.y/cellSize)}`;
+        if(!idx.has(key)) idx.set(key, []);
+        idx.get(key).push(it);
+      }
+      window.__EXCEL_CLICK_INDEX__ = { cellSize, idx };
+    }catch(_){
+      window.__EXCEL_CLICK_INDEX__ = null;
+    }
+  }
+
+  function getExcelMarkerCandidatesAtPoint(pt){
+    try{
+      const data = window.__EXCEL_CLICK_INDEX__;
+      if(!data || !data.idx) return Array.isArray(window.excelMarkers) ? window.excelMarkers : [];
+      const cs = Number(data.cellSize) || 36;
+      const gx = Math.floor(pt.x/cs), gy = Math.floor(pt.y/cs);
+      const out = [];
+      for(let dx=-1; dx<=1; dx++){
+        for(let dy=-1; dy<=1; dy++){
+          const arr = data.idx.get(`${gx+dx}:${gy+dy}`);
+          if(arr && arr.length) out.push(...arr);
+        }
+      }
+      return out.length ? out : (Array.isArray(window.excelMarkers) ? window.excelMarkers : []);
+    }catch(_){
+      return Array.isArray(window.excelMarkers) ? window.excelMarkers : [];
+    }
+  }
+
+  function shouldDrawExcelPolygonsNow(rows){
+    try{
+      const perf = getExcelPerfState(rows || window.__EXCEL_RENDER_ROWS__ || []);
+      const z = (map && typeof map.getZoom === 'function') ? Number(map.getZoom()) : perf.polygonMinZoom;
+      window.__EXCEL_POLY_MIN_ZOOM_ACTIVE__ = perf.polygonMinZoom;
+      return z >= perf.polygonMinZoom;
+    }catch(_){
+      return true;
+    }
+  }
+
+  function updateExcelPerfStatus(rows){
+    try{
+      if(!status) return;
+      const perf = getExcelPerfState(rows || filteredRows || rawRows || []);
+      const drawPolys = shouldDrawExcelPolygonsNow(rows || filteredRows || rawRows || []);
+      let base = String(status.textContent || '');
+      base = base.split('⚡ Modo leve ativo:')[0].split('🗺️ Aproxime para exibir polígonos.')[0].trimEnd();
+      const extra = [];
+      if(perf.heavy){
+        extra.push(`⚡ Modo leve ativo: ${perf.rowsCount.toLocaleString('pt-BR')} pontos / ${perf.polygonCount.toLocaleString('pt-BR')} polígonos. Polígonos visíveis só no zoom ${perf.polygonMinZoom}+.`);
+      }
+      if(!drawPolys && perf.polygonCount){
+        extra.push('🗺️ Aproxime para exibir polígonos.');
+      }
+      status.textContent = extra.length ? [base, ...extra].filter(Boolean).join('\n') : base;
+    }catch(_){ }
+  }
+
+
+
   function getExcelPolygonFillOpacity(){
     try{
       const el = document.getElementById('excelPolyFillOpacity');
@@ -13773,15 +13921,20 @@ return '';
     }
   }
 
-  // Reaplica automaticamente no zoom (só se houver pontos do Excel carregados)
+  // Reaplica automaticamente no zoom só quando muda de faixa visual relevante
   (function(){
     let t=null;
+    let lastBucket=null;
     const map = __getMapSafe();
     if(!map || !map.on) return;
     map.on('zoomend', ()=>{
       try{
         const hasExcel = (window.__EXCEL_MARKERS__ && window.__EXCEL_MARKERS__.length) || (window.__EXCEL_PROD_CLUSTER__ && window.__EXCEL_PROD_CLUSTER__.getLayers && window.__EXCEL_PROD_CLUSTER__.getLayers().length);
         if(!hasExcel) return;
+        const z = Number(map.getZoom());
+        const bucket = z < 11 ? 10 : (z < 13 ? 12 : (z < 15 ? 14 : 16));
+        if(lastBucket === bucket) return;
+        lastBucket = bucket;
       }catch(_e){}
       if(t) clearTimeout(t);
       t=setTimeout(()=>{ try{ resetExcelProducerIcons(); }catch(_e){} }, 80);
@@ -14516,7 +14669,6 @@ const size = n<10 ? 34 : (n<50 ? 40 : 48);
           });
         }
       }catch(_){ }
-      try{ rerenderExcelPolygons(true); }catch(_){ }
       syncExcelPolygonOpacityLabel();
       syncExcelPolygonStrokeWeightLabel();
     }
@@ -14555,13 +14707,28 @@ const size = n<10 ? 34 : (n<50 ? 40 : 48);
       });
       polyOffsetAmountInput.addEventListener('change', ()=>{
         applyExcelPolygonOffsetToMap();
-        rerenderExcelPolygons(true);
       });
     }
     try{
       if(window.map && typeof window.map.on === 'function'){
+        let __lastPolyDrawState = null;
+        let __lastPolyMinZoom = null;
         window.map.on('zoomend', function(){
-          try{ applyExcelPolygonOffsetToMap(); }catch(_){ }
+          try{
+            const rowsNow = window.__EXCEL_RENDER_ROWS__ || filteredRows || rawRows || [];
+            const drawNow = shouldDrawExcelPolygonsNow(rowsNow);
+            const minZoomNow = window.__EXCEL_POLY_MIN_ZOOM_ACTIVE__ || getExcelPerfState(rowsNow).polygonMinZoom;
+            if(__lastPolyDrawState === null || __lastPolyDrawState !== drawNow || __lastPolyMinZoom !== minZoomNow){
+              __lastPolyDrawState = drawNow;
+              __lastPolyMinZoom = minZoomNow;
+              try{ renderMap(rowsNow); }catch(_e){}
+              return;
+            }
+            if(drawNow){
+              try{ applyExcelPolygonOffsetToMap(); }catch(_){ }
+            }
+            try{ updateExcelPerfStatus(rowsNow); }catch(_e){}
+          }catch(_){ }
         });
       }
     }catch(_){ }
@@ -14866,6 +15033,9 @@ function matchText(row, qq){
       if(!visible) return;
 
       const destMode = selDest ? selDest.value : 'auto';
+      const excelPerf = getExcelPerfState(rows);
+      const shouldDrawPolygons = shouldDrawExcelPolygonsNow(rows);
+      try{ window.__EXCEL_LAST_RENDER_PERF__ = excelPerf; }catch(_){ }
       
       // Popup único (global) para os pontos do Excel: evita estados travados ao abrir/fechar com cluster/spiderfy
       const excelPopup = L.popup({
@@ -14939,8 +15109,9 @@ function matchText(row, qq){
             const rect = container.getBoundingClientRect();
             const pt = L.point(ev.clientX - rect.left, ev.clientY - rect.top);
 
+            const candidates = getExcelMarkerCandidatesAtPoint(pt);
             let best = null, bestD = Infinity;
-            for(const it of window.excelMarkers){
+            for(const it of candidates){
               if(!it || !it.m) continue;
               const ll = it.m.getLatLng && it.m.getLatLng();
               if(!ll) continue;
@@ -14998,6 +15169,7 @@ function matchText(row, qq){
       }
 
       window.excelMarkers = [];
+      try{ window.__EXCEL_CLICK_INDEX__ = null; }catch(_){ }
       installExcelClickCapture();
 
       const bounds = L.latLngBounds([]);
@@ -15029,8 +15201,8 @@ function matchText(row, qq){
           bubblingMouseEvents: false,
           title: cols.produtor ? safe(r[cols.produtor]) : '',
           zIndexOffset: 100000,
-          riseOnHover: true,
-          riseOffset: 800
+          riseOnHover: !excelPerf.heavy,
+          riseOffset: excelPerf.heavy ? 0 : 800
         });
 
         // Clique direto no ponto do produtor: sempre abre o popup completo (container)
@@ -15060,7 +15232,7 @@ function matchText(row, qq){
                     const one = makePolyEntry(r, cols, latlngs, year);
                     return shouldShowExcelLegendEntry(one, r, cols) ? [one] : [];
                   })());
-            if(polyEntries && polyEntries.length){
+            if(polyEntries && polyEntries.length && shouldDrawPolygons){
               const fillOpacity = getExcelPolygonFillOpacity();
               const orderedPolyEntries = sortPolyEntriesForDraw(polyEntries);
               orderedPolyEntries.forEach((entry, drawIdx)=>{
@@ -15095,7 +15267,7 @@ function matchText(row, qq){
                   const tp = safe(cols && cols.tipo ? r[cols.tipo] : (r['Tipo'] || ''));
                   if(nm){
                     poly.bindTooltip(`<div style="font-size:11px;font-weight:800;line-height:1.15">${escapeHTML(nm)}</div>${tp ? `<div style=\"font-size:10px;opacity:.85\">${escapeHTML(tp)}</div>` : ''}`, {
-                      sticky:true,
+                      sticky:!excelPerf.heavy,
                       direction:'top',
                       opacity:0.95,
                       className:'excel-poly-tooltip'
@@ -15163,9 +15335,11 @@ function matchText(row, qq){
       });
 
       try{ applyExcelPolygonOpacityToMap(); }catch(_){ }
+      try{ updateExcelPerfStatus(rows); }catch(_){ }
       if(bounds.isValid()){
         map.fitBounds(bounds.pad(0.15));
       }
+      try{ requestAnimationFrame(()=>{ try{ buildExcelPolyClickIndex(); }catch(_e){} }); }catch(_){ try{ buildExcelPolyClickIndex(); }catch(__){} }
     }
 
     function applyFilters(){
@@ -15238,6 +15412,7 @@ function matchText(row, qq){
       }catch(_e){}
 
       renderMap(filteredRows);
+      try{ updateExcelPerfStatus(filteredRows); }catch(_e){}
       renderKPIs(filteredRows);
       renderList(filteredRows);
       drawHist(hist, filteredRows, cols);
@@ -15282,8 +15457,14 @@ function matchText(row, qq){
               if(det.poligron){ r.__poly = parsePoligronToLatLngs(r[det.poligron]); }
             }catch(_){ r.__poly=null; }
             try{
+              if(r.__poly && Array.isArray(r.__poly)){
+                r.__polySimplified = simplifyExcelPolygonLatLngs(r.__poly, getExcelPerfConfig().simplifyTolerance);
+              }
+            }catch(_){ r.__polySimplified = r.__poly || null; }
+            try{
               const polyYear = Array.isArray(r.__anos) && r.__anos.length ? r.__anos[0] : null;
-              r.__polyEntries = (r.__poly && Array.isArray(r.__poly)) ? [makePolyEntry(r, det, r.__poly, polyYear)] : [];
+              const polyLatLngs = (r.__polySimplified && Array.isArray(r.__polySimplified) && r.__polySimplified.length) ? r.__polySimplified : r.__poly;
+              r.__polyEntries = (polyLatLngs && Array.isArray(polyLatLngs)) ? [makePolyEntry(r, det, polyLatLngs, polyYear)] : [];
             }catch(_){ r.__polyEntries=[]; }
             try{ r.__color = legendColorForRow(r, det); }catch(_){ r.__color = '#2f7cf6'; }
 
@@ -15339,7 +15520,12 @@ function matchText(row, qq){
             delete r.__anosSet; delete r.__latSum; delete r.__lonSum; delete r.__n;
             return r;
           });
-          try{ window.__EXCEL_ALL_ROWS__ = uniqueRows; }catch(_){ }
+          try{
+            let polyCount = 0;
+            uniqueRows.forEach(r=>{ polyCount += Array.isArray(r.__polyEntries) ? r.__polyEntries.length : 0; });
+            window.__EXCEL_ALL_ROWS__ = uniqueRows;
+            window.__EXCEL_PERF_LAST_STATS__ = { rows: uniqueRows.length, polygons: polyCount };
+          }catch(_){ }
           onOk({rows: uniqueRows, cols:det, sheet:chosen});
         }catch(err){ onErr(err); }
       };
