@@ -14587,6 +14587,36 @@ const size = n<10 ? 34 : (n<50 ? 40 : 48);
     }catch(_){ }
 
     let rawRows=[], filteredRows=[], cols=null;
+    let __excelFastPoloIndex = null;
+    let __excelFilterCache = new Map();
+    function buildExcelFastIndexes(rows){
+      try{
+        __excelFastPoloIndex = new Map();
+        __excelFilterCache = new Map();
+        if(!cols || !cols.polo || !Array.isArray(rows)) return;
+        rows.forEach(r=>{
+          const key = safe(r[cols.polo]);
+          if(!__excelFastPoloIndex.has(key)) __excelFastPoloIndex.set(key, []);
+          __excelFastPoloIndex.get(key).push(r);
+        });
+      }catch(_e){ __excelFastPoloIndex = null; __excelFilterCache = new Map(); }
+    }
+    function getFastRowsByPoloSet(pSet){
+      try{
+        if(!pSet || !__excelFastPoloIndex) return rawRows;
+        const keys = Array.from(pSet).sort();
+        const cacheKey = 'polo:' + keys.join('||');
+        if(__excelFilterCache.has(cacheKey)) return __excelFilterCache.get(cacheKey);
+        const out = [];
+        const seen = new Set();
+        keys.forEach(k=>{
+          const arr = __excelFastPoloIndex.get(k) || [];
+          arr.forEach(r=>{ if(!seen.has(r)){ seen.add(r); out.push(r); } });
+        });
+        __excelFilterCache.set(cacheKey, out);
+        return out;
+      }catch(_e){ return rawRows; }
+    }
     try{ window.__EXCEL_ROWS_LOADED__ = false; }catch(_){ }
     let visible=true;
     let aborter=null;
@@ -15025,6 +15055,11 @@ function matchText(row, qq){
     function renderMap(rows){
       try{ window.__EXCEL_RENDER_ROWS__ = rows; }catch(_){ }
       try{ if(window.__ANA__ && typeof window.__ANA__.onRender==="function"){ window.__ANA__.onRender(rows); } }catch(_){ }
+      try{ window.__PROD_MARKERS__ = []; }catch(_e){}
+      try{ window.__EXCEL_MARKERS__ = []; }catch(_e){}
+      const __preserveViewport = !!window.__EXCEL_FILTERING__;
+      const __prevCenter = __preserveViewport && map && typeof map.getCenter==='function' ? map.getCenter() : null;
+      const __prevZoom = __preserveViewport && map && typeof map.getZoom==='function' ? map.getZoom() : null;
 
       cluster.clearLayers();
       try{ if(window.__EXCEL_PLAIN_POINTS__ && typeof window.__EXCEL_PLAIN_POINTS__.clearLayers==='function') window.__EXCEL_PLAIN_POINTS__.clearLayers(); }catch(_e){}
@@ -15337,7 +15372,11 @@ function matchText(row, qq){
       try{ applyExcelPolygonOpacityToMap(); }catch(_){ }
       try{ updateExcelPerfStatus(rows); }catch(_){ }
       if(bounds.isValid()){
-        map.fitBounds(bounds.pad(0.15));
+        if(__preserveViewport && __prevCenter && Number.isFinite(__prevZoom)){
+          try{ map.setView(__prevCenter, __prevZoom, {animate:false}); }catch(_e){ }
+        }else{
+          map.fitBounds(bounds.pad(0.15));
+        }
       }
       try{ requestAnimationFrame(()=>{ try{ buildExcelPolyClickIndex(); }catch(_e){} }); }catch(_){ try{ buildExcelPolyClickIndex(); }catch(__){} }
     }
@@ -15353,8 +15392,13 @@ function matchText(row, qq){
       const aySet = getSelectedSet(selAno);
       const stSet = getSelectedSet(selStatus);
 
+      let baseRows = rawRows;
+      const poloOnlyFastPath = !!(pSet && !cSet && !tSet && !tpSet && !aySet && !stSet && !qq);
+      if(poloOnlyFastPath){
+        try{ baseRows = getFastRowsByPoloSet(pSet); }catch(_e){ baseRows = rawRows; }
+      }
 
-      filteredRows = rawRows.filter(r=>{
+      filteredRows = baseRows.filter(r=>{
         if(pSet && cols.polo){ const v=safe(r[cols.polo]); if(!pSet.has(v)) return false; }
         if(cSet && cols.comunidade){ const v=safe(r[cols.comunidade]); if(!cSet.has(v)) return false; }
         if(tSet && cols.tecnico){ const v=safe(r[cols.tecnico]); if(!tSet.has(v)) return false; }
@@ -15411,13 +15455,18 @@ function matchText(row, qq){
         window.dispatchEvent(new CustomEvent('agro-excel-filter-changed', { detail:{ active: hasCriteria, count: hasCriteria ? allow.size : null } }));
       }catch(_e){}
 
+      try{ window.__EXCEL_FILTERING__ = true; }catch(_e){}
       renderMap(filteredRows);
+      try{ window.__EXCEL_FILTERING__ = false; }catch(_e){}
       try{ updateExcelPerfStatus(filteredRows); }catch(_e){}
       renderKPIs(filteredRows);
       renderList(filteredRows);
       drawHist(hist, filteredRows, cols);
 
-      if(routes._excelOn) drawRoutes();
+      if(routes._excelOn){
+        clearTimeout(window.__excelRouteRedrawT__);
+        window.__excelRouteRedrawT__ = setTimeout(()=>{ try{ drawRoutes(); }catch(_e){} }, 120);
+      }
     }
 
     function parseExcel(file, onOk, onErr){
@@ -15693,6 +15742,7 @@ btnLoad.addEventListener('click', ()=>{
       setStatus('Lendo Excel…');
       parseExcel(file.files[0], ({rows, cols:det, sheet})=>{
         rawRows=rows; cols=det;
+        try{ buildExcelFastIndexes(rawRows); }catch(_e){}
         try{ window.__EXCEL_ROWS_LOADED__ = Array.isArray(rows) && rows.length > 0; }catch(_){ }
         buildFilters(rawRows);
         q.value='';
