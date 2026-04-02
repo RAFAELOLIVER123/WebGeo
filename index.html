@@ -318,7 +318,6 @@ window.escapeHTML = window.escapeHTML || function(s){
 <script defer="True" src="https://unpkg.com/togeojson@0.16.0"></script>
 <script defer="True" src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.min.js"></script>
-<script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- Suporte a KMZ -->
 <script defer="True" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <!-- Suporte a Shapefile (.zip) -->
@@ -451,20 +450,6 @@ window.escapeHTML = window.escapeHTML || function(s){
     #sec-search .row{display:flex;gap:8px;align-items:center}
     #searchBox{flex:1;min-width:0}
     #searchBtn,#gpsBtn{white-space:nowrap}
-
-    #pixCard{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);right:auto;bottom:auto;z-index:2001;width:300px;background:#fff;border:1px solid var(--card-border);border-radius:10px;box-shadow:0 18px 40px rgba(16,24,40,.18),0 4px 14px rgba(16,24,40,.08);display:none;overflow:hidden;animation:pixIn .25s ease}
-    @keyframes pixIn{from{opacity:0;transform:translate(-50%,-48%)}to{opacity:1;transform:translate(-50%,-50%)}}
-    #pixCard header{background:linear-gradient(90deg,var(--brand-blue),var(--brand-blue-dark));color:#fff;padding:12px;display:flex;align-items:center;justify-content:space-between}
-    #pixCard .title{font-weight:800;letter-spacing:.2px}
-    #pixCard .body{padding:12px;color:var(--ink)}
-    #pixCard .qr{border:1px solid var(--ctrl-border);border-radius:12px;padding:8px;display:flex;align-items:center;justify-content:center;background:#fff}
-    #pixCard .kvs{margin-top:8px;font-size:12.5px;color:#111827}
-    #pixCard .kv{display:flex;gap:8px;margin:4px 0}
-    #pixCard .k{width:96px;color:#334155}
-    #pixCard .v{flex:1;word-break:break-word}
-    #pixClose{background:rgba(255,0,0);border:0;color:#ffffff;padding:6px 8px;border-radius:8px;cursor:pointer}
-    #pixActions{display:flex;gap:8px;margin-top:10px}
-    #pixActions .btn{flex:1}
     .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;background:#f1f5ff;border:1px solid #e2e8ff;color:#1d4ed8;border-radius:8px;font-weight:600;font-size:12px}
 
     /* Remover controle de zoom do Leaflet */
@@ -522,13 +507,6 @@ window.escapeHTML = window.escapeHTML || function(s){
       #sec-draw .row label.btn,
       #sec-project .row label.btn,
       #sec-shp .row label.btn{flex:1}
-
-      #pixCard{
-        width:min(92vw, 420px);
-        right:4vw;
-        bottom:calc(12px + env(safe-area-inset-bottom,0));
-        border-radius:14px;
-      }
 
       .leaflet-control-attribution{font-size:10px}
     }
@@ -3200,25 +3178,6 @@ __restoreMapLegendOnlyExport(); a.remove(); URL.revokeObjectURL(url);
 <button class="coord-btn" id="openToolbarBtn" title="Abrir Edição e Seleção"><i class="fa-solid fa-pen"></i></button></div>
 </div></div>
 </div>
-<div aria-label="Apoie a manutenção via PIX" aria-live="polite" id="pixCard" role="dialog">
-<header>
-<span class="title"><i class="fa-solid fa-hand-holding-heart"></i> Apoie a manutenção do Site</span>
-<button id="pixClose" title="Fechar"><i class="fa-solid fa-xmark"></i></button>
-</header>
-<div class="body">
-<div class="qr" style="margin-top:10px"><div aria-hidden="true" id="pixQrBox"></div></div>
-<div class="kvs">
-<div class="kv"><div class="k">Ou use a chave</div><div class="v"><b>Chave Pix</b> — <em>Chave Aleatória</em></div></div>
-<div class="kv"><div class="k">Nome</div><div class="v">Rafael Lima Oliveira</div></div>
-<div class="kv"><div class="k">CPF</div><div class="v">•••.006.732-••</div></div>
-<div class="kv"><div class="k">Banco</div><div class="v">260 - Nu Pagamentos S.A. - Instituição de Pagamento</div></div>
-<div class="kv"><div class="k">Identificador</div><div class="v">EfGWzAFK6b</div></div>
-</div>
-<div id="pixActions">
-<button class="btn" id="btnCopyPayload"><i class="fa-regular fa-copy"></i> Copiar código</button>
-<button class="btn btn-ghost" id="btnCopyKey"><i class="fa-regular fa-copy"></i> Copiar chave</button></div>
-<div class="coord-small" style="margin-top:1px;color:var(--muted)">Escaneie o QR ou use “Copiar código”.</div></div>
-</div>
 <div aria-live="polite" id="shapeToolbar">
 <div id="dragHandle">
 <div class="toolbar-title">Edição e Seleção</div>
@@ -3355,8 +3314,8 @@ __restoreMapLegendOnlyExport(); a.remove(); URL.revokeObjectURL(url);
       ACRES_PER_M2:0.00024710538146717,
       START_ICON:L.icon({iconUrl:'https://img.icons8.com/emoji/48/000000/triangular-flag.png',iconSize:[24,24],iconAnchor:[12,24]}),
       END_ICON:L.icon({iconUrl:'https://img.icons8.com/emoji/48/000000/chequered-flag.png',iconSize:[24,24],iconAnchor:[12,24]}),
-      PIX_PAYLOAD:'00020126580014BR.GOV.BCB.PIX013651aeff90-273f-4547-8d78-33d34059010c5204000053039865802BR5920Rafael Lima Oliveira6009SAO PAULO62140510EfGWzAFK6b6304B782',
-      PIX_RANDOM_KEY:'51aeff90-273f-4547-8d78-33d34059010c'
+      PIX_PAYLOAD:'',
+      PIX_RANDOM_KEY:''
     };
     const showLoading=(m='Carregando…')=>{UI.loading.textContent=m;UI.loading.style.display='block'};
     const hideLoading=()=>{UI.loading.style.display='none'};
@@ -4793,22 +4752,6 @@ ov._dataUrl=url; ov._opacity=1; E.pdfLayers[name]=ov; E.activePdf=name;
       handle.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY)},{passive:true});
       handle.addEventListener('touchend',up,{passive:true});
     }}))();
-
-    /* PIX Card */
-    (function PixCard(){
-      if(!UI.pixCard) return;
-      try{
-        UI.pixQrBox.innerHTML='';
-        new QRCode(UI.pixQrBox,{text:CONST.PIX_PAYLOAD,width:200,height:200,correctLevel:QRCode.CorrectLevel.M});
-      }catch(e){console.error('QR PIX:',e)}
-      UI.btnCopyPayload?.addEventListener('click',()=>{navigator.clipboard?.writeText(CONST.PIX_PAYLOAD); const old=UI.btnCopyPayload.innerHTML; UI.btnCopyPayload.innerHTML='<i class="fa-solid fa-check"></i> Copiado'; setTimeout(()=>UI.btnCopyPayload.innerHTML=old,900);});
-      UI.btnCopyKey?.addEventListener('click',()=>{navigator.clipboard?.writeText(CONST.PIX_RANDOM_KEY); const old=UI.btnCopyKey.innerHTML; UI.btnCopyKey.innerHTML='<i class="fa-solid fa-check"></i> Copiado'; setTimeout(()=>UI.btnCopyKey.innerHTML=old,900);});
-      const show=()=>UI.pixCard.style.display='block', hide=()=>UI.pixCard.style.display='none';
-      UI.pixClose?.addEventListener('click',hide);
-      let firstTimer=setTimeout(show,60*1000), reTimer=null;
-      const reshow=()=>{if(reTimer)clearInterval(reTimer); reTimer=setInterval(show,10*60*1000)};
-      UI.pixClose?.addEventListener('click',reshow);
-    })();
 
     /* Projeto */
     function collectProject(){
@@ -12344,7 +12287,6 @@ window.__REALIZADO_STATE__ = {
 #aoToggle2{top:262px!important;}
 #pafFab{top:310px!important;}
 #kmlRouteFab{top:358px!important;}
-#pixCard{max-width:min(92vw,340px)!important;}
 /* remove flicker from leaflet animations */
 .leaflet-fade-anim .leaflet-tile,
 .leaflet-fade-anim .leaflet-popup,
@@ -12873,7 +12815,7 @@ window.__REALIZADO_STATE__ = {
       }catch(e){}
     }
 
-    // Stack maintenance
+    // Stack ordering
     function ensureEntry(name,type,layers){
       if(!name || !layers || !layers.length) return;
       const found = E._stack.find(x=>x.name===name && x.type===type);
@@ -15459,14 +15401,47 @@ function matchText(row, qq){
       renderMap(filteredRows);
       try{ window.__EXCEL_FILTERING__ = false; }catch(_e){}
       try{ updateExcelPerfStatus(filteredRows); }catch(_e){}
-      renderKPIs(filteredRows);
-      renderList(filteredRows);
-      drawHist(hist, filteredRows, cols);
 
-      if(routes._excelOn){
-        clearTimeout(window.__excelRouteRedrawT__);
-        window.__excelRouteRedrawT__ = setTimeout(()=>{ try{ drawRoutes(); }catch(_e){} }, 120);
+      const __postFilterUi = ()=>{
+        try{ renderKPIs(filteredRows); }catch(_e){}
+        try{ renderList(filteredRows); }catch(_e){}
+        try{ drawHist(hist, filteredRows, cols); }catch(_e){}
+        if(routes._excelOn){
+          clearTimeout(window.__excelRouteRedrawT__);
+          window.__excelRouteRedrawT__ = setTimeout(()=>{ try{ drawRoutes(); }catch(_e){} }, 120);
+        }
+      };
+      try{
+        if(window.__excelPostFilterUiRaf){ cancelAnimationFrame(window.__excelPostFilterUiRaf); }
+        window.__excelPostFilterUiRaf = requestAnimationFrame(()=>{
+          window.__excelPostFilterUiRaf = 0;
+          __postFilterUi();
+        });
+      }catch(_e){
+        __postFilterUi();
       }
+    }
+
+    let __excelApplyFiltersTimer = 0;
+    let __excelApplyFiltersRaf = 0;
+    function scheduleApplyFilters(delay){
+      try{ if(__excelApplyFiltersTimer){ clearTimeout(__excelApplyFiltersTimer); __excelApplyFiltersTimer = 0; } }catch(_){ }
+      try{ if(__excelApplyFiltersRaf){ cancelAnimationFrame(__excelApplyFiltersRaf); __excelApplyFiltersRaf = 0; } }catch(_){ }
+      const run = ()=>{
+        __excelApplyFiltersTimer = 0;
+        try{
+          __excelApplyFiltersRaf = requestAnimationFrame(()=>{
+            __excelApplyFiltersRaf = 0;
+            applyFilters();
+            try{ window._syncExcelLayerVisibility && window._syncExcelLayerVisibility(); }catch(_){ }
+          });
+        }catch(_){
+          applyFilters();
+          try{ window._syncExcelLayerVisibility && window._syncExcelLayerVisibility(); }catch(_){ }
+        }
+      };
+      if(delay && delay > 0){ __excelApplyFiltersTimer = setTimeout(run, delay); }
+      else { run(); }
     }
 
     function parseExcel(file, onOk, onErr){
@@ -15800,8 +15775,7 @@ btnLoad.addEventListener('click', ()=>{
     });
 
     if(btnClearFilters) btnClearFilters.addEventListener('click', clearFilters);
-    if(selDest) selDest.addEventListener('change', ()=>{ applyFilters();
-        try{ window._syncExcelLayerVisibility && window._syncExcelLayerVisibility(); }catch(_){} if(routes._excelOn) drawRoutes(); });
+    if(selDest) selDest.addEventListener('change', ()=>{ scheduleApplyFilters(0); if(routes._excelOn) drawRoutes(); });
     if(selRouteMode) selRouteMode.addEventListener('change', ()=>{ if(routes._excelOn) drawRoutes(); });
 
     if(btnRoutes) btnRoutes.addEventListener('click', ()=>{
@@ -15811,29 +15785,24 @@ btnLoad.addEventListener('click', ()=>{
     if(btnRoutesClear) btnRoutesClear.addEventListener('click', clearRoutes);
 
     ['excelQ','excelPolo','excelCom','excelTec','excelTipo','excelAno','excelStatusSel'].forEach(id=>{
-      $(id).addEventListener('input', ()=>{
-        if(id==='excelQ'){
-          clearTimeout(window.__excelT);
-          window.__excelT=setTimeout(applyFilters, 180);
-        }else{
-          applyFilters();
-        try{ window._syncExcelLayerVisibility && window._syncExcelLayerVisibility(); }catch(_){}
-        }
+      const el = $(id);
+      if(!el) return;
+      el.addEventListener('input', ()=>{
+        scheduleApplyFilters(id==='excelQ' ? 180 : 70);
       });
-      $(id).addEventListener('change', applyFilters);
-    
+      el.addEventListener('change', ()=>{
+        scheduleApplyFilters(id==='excelQ' ? 0 : 40);
+      });
+    });
+
     // Extra: garante que a busca (excelQ) sempre reaplique filtros e atualize o mapa
     try{
       if(q && !q.__agroBound){
         q.__agroBound = true;
-        q.addEventListener('input', ()=>{
-          clearTimeout(window.__excelT);
-          window.__excelT = setTimeout(applyFilters, 180);
-        });
-        q.addEventListener('change', applyFilters);
+        q.addEventListener('input', ()=>{ scheduleApplyFilters(180); });
+        q.addEventListener('change', ()=>{ scheduleApplyFilters(0); });
       }
     }catch(_e){}
-});
 
     drawHist(hist, [], null);
     setStatus('Pronto: abra o painel Excel e carregue um arquivo.');
