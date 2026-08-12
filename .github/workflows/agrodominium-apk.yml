@@ -37,14 +37,16 @@ jobs:
           echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
           rm -rf /tmp/v33overlay && mkdir -p /tmp/v33overlay
           tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
-          cd android-build && patch -p1 < /tmp/v33overlay/v33.patch && cd ..
+          cd android-build
+          patch -p1 < /tmp/v33overlay/v33.patch
+          cd ..
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             mkdir -p "android-build/app/src/main/res/mipmap-$d"
             cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
             cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"
           done
 
-      - name: Apply exact V3.4 full overlay
+      - name: Apply V3.4 full overlay
         shell: bash
         run: |
           cat v34_overlay/full00.b64 v34_overlay/full01.b64 v34_overlay/full02_03.b64 v34_overlay/full04_05.b64 v34_overlay/full06_07.b64 v34_overlay/full08.b64 v34_overlay/full09.b64 v34_overlay/full10.b64 v34_overlay/full11.b64 v34_overlay/full12.b64 v34_overlay/full13.b64 | base64 -d > /tmp/v34_overlay_full.tgz
@@ -58,93 +60,17 @@ jobs:
           echo "923e99399f72ea6a82edad9d18af0c80b03395cb34a9272dd4d990751d4b9491  /tmp/v35_patch_bundle.tgz" | sha256sum -c -
           rm -rf /tmp/v35patch && mkdir -p /tmp/v35patch
           tar -xzf /tmp/v35_patch_bundle.tgz -C /tmp/v35patch
-          cd android-build && patch -p1 < /tmp/v35patch/v35.patch && cd ..
+          cd android-build
+          patch -p1 < /tmp/v35patch/v35.patch
+          cd ..
 
       - name: Apply V3.5.1 stability hotfix
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          js_path=Path('android-build/app/src/main/assets/app/app-v3.js')
-          css_path=Path('android-build/app/src/main/assets/app/style-v3.css')
-          gradle_path=Path('android-build/app/build.gradle')
-          s=js_path.read_text(encoding='utf-8')
-          # Remove observers that were fighting over sync visibility / causing repeated DOM work.
-          s=s.replace("new MutationObserver(()=>setTimeout(postRender34,0)).observe(document.documentElement,{childList:true,subtree:true});","/* V3.5.1: observer global removido; open/nav já chamam postRender34 */")
-          s=s.replace("new MutationObserver(()=>setTimeout(post35,0)).observe(document.documentElement,{childList:true,subtree:true});","/* V3.5.1: sem observer global para evitar rerender/pisca-pisca */")
-          s=s.replace("function post35(){forceSyncVisible35();const h=document.querySelector('.estimate-section-head230 p');if(h)h.textContent='A amostra completa é mantida no aparelho, mas somente 12 linhas são exibidas por página para o formulário continuar rápido.'}","function post35(){const h=document.querySelector('.estimate-section-head230 p'),t='A amostra completa é mantida no aparelho, mas somente 12 linhas são exibidas por página para o formulário continuar rápido.';if(h&&h.textContent!==t)h.textContent=t;}")
-          s += r'''
-
-/* AgroDominium Android V3.5.1 — estabilidade de tela + sync manual fixo */
-(function(){
-'use strict';
-let lastWarn351=0;
-const el351=id=>document.getElementById(id);
-function badge351(id,n){const e=el351(id);if(!e)return;e.hidden=!n;e.textContent=n>99?'99+':String(n||'')}
-function ensureSync351(){
-  const hero=document.querySelector('#screen .hero-actions');
-  if(hero&&!el351('forceSync351'))hero.insertAdjacentHTML('beforeend','<button id="forceSync351" class="secondary" onclick="syncScreen()">↻ Sincronizar</button>');
-  const b=el351('forceSync351');if(b){b.style.setProperty('display','inline-flex','important');b.textContent='↻ Sincronizar'+(pending()?` (${pending()})`:'');}
-  const sb=el351('syncBtn35');if(sb)sb.style.setProperty('display','inline-flex','important');
-  document.querySelectorAll('#screen .menu-row').forEach(x=>{if(/Sincroniza/i.test(x.textContent||''))x.style.setProperty('display','flex','important')});
-}
-function patchScreen351(fn,delay=90){if(typeof fn!=='function')return fn;return function(){const r=fn.apply(this,arguments);setTimeout(ensureSync351,delay);return r}}
-window.home=patchScreen351(window.home,110);
-window.managerHome=patchScreen351(window.managerHome,120);
-window.profile=patchScreen351(window.profile,120);
-const syncScreen351=window.syncScreen;window.syncScreen=function(){const r=syncScreen351.apply(this,arguments);setTimeout(ensureSync351,80);return r};
-
-// Auto-sync fica silencioso: atualiza estado/fila, mas NÃO recria a tela atual.
-window.agroAutoSyncResult=function(payload){
-  const r=parse(payload,{});try{load()}catch(e){}
-  ensureSync351();
-  if(r.failed>0&&Date.now()-lastWarn351>12000){lastWarn351=Date.now();toast(`${r.failed} registro(s) continuam pendentes.`,'warn')}
-  if(el351('syncTitle35'))el351('syncTitle35').textContent=pending()?pending()+' registro(s) pendente(s)':'Tudo atualizado';
-  if(V35&&V35.chat&&V35.chat.conversationId&&Array.isArray(r.results)&&r.results.some(x=>x.type==='chat.message'))native('requestChatHistory',V35.chat.conversationId);
-};
-
-// Atualização de base em segundo plano só troca os dados em memória; a tela permanece onde o usuário está.
-window.agroBackgroundRefresh=function(payload){
-  const r=parse(payload,{});if(!r.ok)return;
-  try{snap=r;D=r.data||D;S.user=r.user||S.user;S.groups=r.groups||S.groups;S.group_id=r.group_id||S.group_id;S.online=!!native('isOnline')}catch(e){}
-  ensureSync351();
-  if(el351('syncText35'))el351('syncText35').textContent='Base atualizada em segundo plano sem sair desta tela.';
-};
-
-// Realtime só redesenha chat quando realmente mudou; sem refresh visual a cada polling.
-window.agroRealtimeResult=function(payload){
-  const r=parse(payload,{});if(!r.ok)return;
-  const oldConv=JSON.stringify(D.chat_conversas||[]),cid=V35&&V35.chat?+V35.chat.conversationId||0:0;
-  const before=(D.chat_mensagens||[]).filter(x=>+x.conversa_id===cid).reduce((m,x)=>Math.max(m,+x.id||0),0);
-  if(Array.isArray(r.notifications))D.notificacoes=r.notifications;
-  if(Array.isArray(r.chat_conversas))D.chat_conversas=r.chat_conversas;
-  if(Array.isArray(r.chat_mensagens)){
-    D.chat_mensagens=D.chat_mensagens||[];const map=new Map(D.chat_mensagens.map(x=>[+x.id,x]));
-    for(const m of r.chat_mensagens)map.set(+m.id,m);D.chat_mensagens=[...map.values()];
-  }
-  badge351('notifBadge33',+r.notification_unread||0);badge351('chatBadge33',+r.chat_unread||0);
-  const after=(D.chat_mensagens||[]).filter(x=>+x.conversa_id===cid).reduce((m,x)=>Math.max(m,+x.id||0),0);
-  if(el351('chatRoom35')&&cid&&after>before){native('requestChatHistory',cid);return}
-  if(el351('chatList35')&&JSON.stringify(D.chat_conversas||[])!==oldConv&&typeof window.renderChatList35==='function')window.renderChatList35();
-};
-
-document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureSync351,180));
-setTimeout(ensureSync351,250);
-})();
-'''
-          js_path.write_text(s,encoding='utf-8')
-          css=css_path.read_text(encoding='utf-8')
-          css += "\n/* V3.5.1 */\n#forceSync351,#syncBtn35{display:inline-flex!important;visibility:visible!important;opacity:1!important}#forceSync351{align-items:center;justify-content:center}\n"
-          css_path.write_text(css,encoding='utf-8')
-          g=gradle_path.read_text(encoding='utf-8')
-          g=re.sub(r'versionCode\s+\d+','versionCode 351',g,1)
-          g=re.sub(r"versionName\s+'[^']+'","versionName '3.5.1'",g,1)
-          gradle_path.write_text(g,encoding='utf-8')
-          PY
+          python3 v35_overlay/apply_v351.py
           grep -q "V3.5.1 — estabilidade" android-build/app/src/main/assets/app/app-v3.js
           grep -q "versionName '3.5.1'" android-build/app/build.gradle
-          ! grep -q "new MutationObserver(()=>setTimeout(post35,0))" android-build/app/src/main/assets/app/app-v3.js
+          if grep -q "new MutationObserver(()=>setTimeout(post35,0))" android-build/app/src/main/assets/app/app-v3.js; then exit 1; fi
 
       - name: Java 17
         uses: actions/setup-java@v4
