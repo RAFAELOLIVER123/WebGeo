@@ -1,0 +1,51 @@
+name: Export AgroDominium V3.3 Source
+
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths:
+      - '.github/workflows/agrodominium-v33-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Restore full V3 source
+        shell: bash
+        run: |
+          cat v3src_payload/part00.b64 v3src_payload/part01.b64 v3src_payload/rest00.b64 v3src_payload/rest01.b64 v3src_payload/rest02.b64 v3src_payload/rest03.b64 v3src_payload/rest04.b64 v3src_payload/rest05.b64 | base64 -d > /tmp/v3_source.tgz
+          echo "70ee2dcc439b7aac2a66e022d22feae4d3a327bf4c0c0b80e30f6877bf3379c8  /tmp/v3_source.tgz" | sha256sum -c -
+          rm -rf android-build/app
+          tar -xzf /tmp/v3_source.tgz -C android-build
+      - name: Apply V3.3 realtime overlay
+        shell: bash
+        run: |
+          cat v33_overlay/part00.b64 v33_overlay/part01a.b64 v33_overlay/part01b.b64 v33_overlay/part02.b64 v33_overlay/part03a.b64 v33_overlay/part03b.b64 | base64 -d > /tmp/v33_overlay.tgz
+          echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
+          rm -rf /tmp/v33overlay && mkdir -p /tmp/v33overlay
+          tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
+          cd android-build && patch -p1 < /tmp/v33overlay/v33.patch && cd ..
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "android-build/app/src/main/res/mipmap-$d"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"
+          done
+      - name: Verify against uploaded-era V3.3 markers
+        run: |
+          grep -q "applicationId 'com.agrodominium.mobile.v33'" android-build/app/build.gradle
+          grep -q "versionName '3.3.0'" android-build/app/build.gradle
+          grep -q "AgroDominium Android V3.3" android-build/app/src/main/assets/app/app-v3.js
+      - name: Pack source
+        run: tar -czf AgroDominium_V3_3_EXACT_SOURCE.tgz -C android-build app build.gradle settings.gradle gradle.properties
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgroDominium_V3_3_EXACT_SOURCE
+          path: AgroDominium_V3_3_EXACT_SOURCE.tgz
+          retention-days: 7
