@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           base64 -d v35_overlay/patch_bundle.b64 > /tmp/v35_patch_bundle.tgz
-          echo "a929bb625b12fda3d0aba3fcf845c63e19e4019405c72ce75106359e1a0598bd  /tmp/v35_patch_bundle.tgz" | sha256sum -c -
+          echo "923e99399f72ea6a82edad9d18af0c80b03395cb34a9272dd4d990751d4b9491  /tmp/v35_patch_bundle.tgz" | sha256sum -c -
           rm -rf /tmp/v35patch && mkdir -p /tmp/v35patch
           tar -xzf /tmp/v35_patch_bundle.tgz -C /tmp/v35patch
           test -f /tmp/v35patch/v35.patch
@@ -97,7 +97,7 @@ jobs:
           grep -q "versionName '3.5.0'" android-build/app/build.gradle
           grep -q "requestChatDirectory" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           grep -q "requestChatHistory" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
-          grep -q "playChatAudio" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "playChatAudioInternal" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           grep -q "syncForce35" android-build/app/src/main/assets/app/app-v3.js
           grep -q "Sincronizar agora" android-build/app/src/main/assets/app/app-v3.js
           grep -q "pageSize:12" android-build/app/src/main/assets/app/app-v3.js
