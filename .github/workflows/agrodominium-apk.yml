@@ -1,0 +1,39 @@
+name: AgroDominium Android APK
+
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths:
+      - 'android-build/**'
+      - '.github/workflows/agrodominium-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build APK
+        working-directory: android-build
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Rename APK
+        run: cp android-build/app/build/outputs/apk/debug/app-debug.apk AgroDominium_Android_V3.apk
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgroDominium_Android_V3
+          path: AgroDominium_Android_V3.apk
+          retention-days: 30
