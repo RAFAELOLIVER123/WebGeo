@@ -1,120 +1,89 @@
-package com.agrodominium.app;
+package com.agrodominium.mobile.v3;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Intent;
+import android.content.*;
 import android.content.pm.PackageManager;
-import android.net.Uri;
+import android.database.Cursor;
+import android.database.sqlite.*;
+import android.location.*;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.webkit.GeolocationPermissions;
-import android.webkit.ValueCallback;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.webkit.*;
+import org.json.*;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "https://salmon-woodcock-375027.hostingersite.com/";
-    private static final int REQ_PERMISSIONS = 10;
-    private static final int REQ_FILE = 20;
-    private WebView webView;
-    private ValueCallback<Uri[]> fileCallback;
+    private static final String BASE="https://salmon-woodcock-375027.hostingersite.com/mobile/api.php";
+    private WebView web;
+    private Db db;
+    private SharedPreferences prefs;
+    private final ExecutorService io=Executors.newSingleThreadExecutor();
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        webView = new WebView(this);
-        setContentView(webView);
-
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setGeolocationEnabled(true);
-        s.setAllowFileAccess(true);
-        s.setAllowContentAccess(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " AgroDominiumAndroid/3.0");
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (url == null) return false;
-                Uri uri = Uri.parse(url);
-                String scheme = uri.getScheme();
-                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                    view.loadUrl(url);
-                    return true;
-                }
-                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) {}
-                return true;
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    callback.invoke(origin, true, false);
-                } else {
-                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_PERMISSIONS);
-                    callback.invoke(origin, true, false);
-                }
-            }
-
-            @Override
-            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
-                if (fileCallback != null) fileCallback.onReceiveValue(null);
-                fileCallback = filePathCallback;
-                try {
-                    Intent intent = fileChooserParams.createIntent();
-                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                    startActivityForResult(intent, REQ_FILE);
-                    return true;
-                } catch (Exception e) {
-                    fileCallback = null;
-                    return false;
-                }
-            }
-        });
-
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.CAMERA}, REQ_PERMISSIONS);
-        }
-
-        if (savedInstanceState == null) webView.loadUrl(APP_URL); else webView.restoreState(savedInstanceState);
+    @Override public void onCreate(Bundle b){super.onCreate(b);db=new Db(this);prefs=getSharedPreferences("agro_v3",MODE_PRIVATE);web=new WebView(this);setContentView(web);WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setDatabaseEnabled(true);s.setAllowFileAccess(true);s.setCacheMode(WebSettings.LOAD_DEFAULT);web.setWebViewClient(new WebViewClient());web.addJavascriptInterface(new Bridge(),"AgroNative");if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},70);web.loadUrl("file:///android_asset/app/index.html");}
+    @Override public void onBackPressed(){if(web.canGoBack())web.goBack();else super.onBackPressed();}
+    private boolean online(){try{ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);NetworkInfo n=cm.getActiveNetworkInfo();return n!=null&&n.isConnected();}catch(Exception e){return false;}}
+    private String now(){return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new Date());}
+    private void js(String fn,String payload){final String code="if(window."+fn+")window."+fn+"("+JSONObject.quote(payload)+");";runOnUiThread(()->web.evaluateJavascript(code,null));}
+    private JSONObject request(String action,String method,JSONObject body)throws Exception{
+        URL u=new URL(BASE+"?action="+URLEncoder.encode(action,"UTF-8")+(action.equals("bootstrap")?"&completo=1&group_id="+prefs.getInt("group_id",0):""));
+        HttpURLConnection c=(HttpURLConnection)u.openConnection();c.setConnectTimeout(18000);c.setReadTimeout(45000);c.setRequestMethod(method);c.setRequestProperty("Accept","application/json");c.setRequestProperty("User-Agent","AgroDominium-Android/3.0.1 Universal");String token=prefs.getString("token","");if(!token.isEmpty())c.setRequestProperty("Authorization","Bearer "+token);if("POST".equals(method)){c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");byte[] x=(body==null?"{}":body.toString()).getBytes(StandardCharsets.UTF_8);try(OutputStream o=c.getOutputStream()){o.write(x);}}
+        int code=c.getResponseCode();InputStream in=code>=200&&code<400?c.getInputStream():c.getErrorStream();StringBuilder sb=new StringBuilder();if(in!=null){BufferedReader r=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));String line;while((line=r.readLine())!=null)sb.append(line);r.close();}JSONObject out;try{out=new JSONObject(sb.length()==0?"{}":sb.toString());}catch(Exception e){out=new JSONObject().put("ok",false).put("error","Resposta inválida do servidor (HTTP "+code+").");}if(code>=400&&!out.has("ok"))out.put("ok",false);return out;
     }
+    private void saveLogin(JSONObject r)throws Exception{prefs.edit().putString("token",r.optString("token")).putString("user",r.optJSONObject("user")!=null?r.getJSONObject("user").toString():"{}").putString("groups",r.optJSONArray("groups")!=null?r.getJSONArray("groups").toString():"[]").putInt("group_id",r.optInt("group_id",0)).apply();}
+    private void refreshInternal(String callback){if(!online()){js(callback,new JSONObjectSafe().put("ok",false).put("error","Sem internet. A base baixada continua disponível offline.").toString());return;}try{JSONObject r=request("bootstrap","GET",null);if(r.optBoolean("ok")){db.saveSnapshot(r.toString());if(r.optJSONObject("user")!=null)prefs.edit().putString("user",r.optJSONObject("user").toString()).apply();if(r.optJSONArray("groups")!=null)prefs.edit().putString("groups",r.optJSONArray("groups").toString()).apply();}js(callback,r.toString());}catch(Exception e){js(callback,new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString());}}
+    private JSONObject syncOne(Db.Row row)throws Exception{JSONObject req=new JSONObject();req.put("client_uuid",row.uuid);req.put("type",row.type);req.put("group_id",row.groupId);req.put("payload",new JSONObject(row.payload));req.put("photos",new JSONArray(row.photos==null?"[]":row.photos));return request("sync","POST",req);}
+    private JSONObject syncAll(){JSONObject out=new JSONObject();try{if(!online())return out.put("ok",false).put("error","Sem internet. Os registros permanecem salvos no aparelho.");int ok=0,fail=0;for(Db.Row row:db.pendingRows()){try{JSONObject r=syncOne(row);if(r.optBoolean("ok")){db.markSynced(row.id,r.toString());ok++;}else{db.markFailed(row.id,r.optString("error","Falha no servidor"));fail++;}}catch(Exception e){db.markFailed(row.id,e.getMessage());fail++;}}try{JSONObject b=request("bootstrap","GET",null);if(b.optBoolean("ok"))db.saveSnapshot(b.toString());}catch(Exception ignored){}out.put("ok",fail==0).put("synced",ok).put("failed",fail).put("pending",db.pendingCount()).put("message",ok+" registro(s) enviado(s). "+db.pendingCount()+" pendente(s).");}catch(Exception e){try{out.put("ok",false).put("error",e.getMessage());}catch(Exception ignored){}}return out;}
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_FILE && fileCallback != null) {
-            Uri[] result = null;
-            if (resultCode == RESULT_OK && data != null) {
-                if (data.getClipData() != null) {
-                    int count = data.getClipData().getItemCount();
-                    result = new Uri[count];
-                    for (int i = 0; i < count; i++) result[i] = data.getClipData().getItemAt(i).getUri();
-                } else if (data.getData() != null) {
-                    result = new Uri[]{data.getData()};
-                }
-            }
-            fileCallback.onReceiveValue(result);
-            fileCallback = null;
-        }
+    public class Bridge{
+        @JavascriptInterface public String getState(){try{JSONObject j=new JSONObject();j.put("authenticated",!prefs.getString("token","").isEmpty());j.put("online",online());j.put("pending",db.pendingCount());j.put("has_snapshot",db.hasSnapshot());j.put("group_id",prefs.getInt("group_id",0));j.put("version","3.0.1 Universal");j.put("user",new JSONObject(prefs.getString("user","{}")));j.put("groups",new JSONArray(prefs.getString("groups","[]")));return j.toString();}catch(Exception e){return "{}";}}
+        @JavascriptInterface public String isOnline(){return online()?"true":"false";}
+        @JavascriptInterface public String getSnapshot(){String s=db.snapshot();return s==null?"{}":s;}
+        @JavascriptInterface public String getQueue(){return db.queueJson();}
+        @JavascriptInterface public void login(String login,String password){io.execute(()->{try{JSONObject q=new JSONObject().put("login",login).put("password",password).put("device_id",deviceId()).put("device_name",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL);JSONObject r=request("login","POST",q);if(r.optBoolean("ok")){saveLogin(r);js("agroLoginResult",r.toString());refreshInternal("agroBootstrapResult");}else js("agroLoginResult",r.toString());}catch(Exception e){js("agroLoginResult",new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString());}});}
+        @JavascriptInterface public void refreshData(){io.execute(()->refreshInternal("agroBootstrapResult"));}
+        @JavascriptInterface public void syncNow(){io.execute(()->js("agroSyncResult",syncAll().toString()));}
+        @JavascriptInterface public String queueOperation(String type,String payload,String photos){try{new JSONObject(payload);new JSONArray(photos==null?"[]":photos);String uuid=UUID.randomUUID().toString();db.enqueue(uuid,type,prefs.getInt("group_id",0),payload,photos);if(online())io.execute(()->{syncAll();js("agroQueueChanged",getState());});return new JSONObject().put("ok",true).put("uuid",uuid).put("message","Salvo no aparelho para sincronização.").toString();}catch(Exception e){return new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString();}}
+        @JavascriptInterface public String setGroup(int id){prefs.edit().putInt("group_id",id).apply();io.execute(()->refreshInternal("agroBootstrapResult"));return new JSONObjectSafe().put("ok",true).toString();}
+        @JavascriptInterface public String saveEstimateDraft(String uuid,String payload,String photos){try{if(uuid==null||uuid.trim().isEmpty())uuid=UUID.randomUUID().toString();db.saveDraft(uuid,payload,photos);return new JSONObject().put("ok",true).put("uuid",uuid).put("message","Rascunho salvo offline.").toString();}catch(Exception e){return new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString();}}
+        @JavascriptInterface public String getEstimateDrafts(){return db.draftsJson();}
+        @JavascriptInterface public String deleteEstimateDraft(String uuid){db.deleteDraft(uuid);return new JSONObjectSafe().put("ok",true).toString();}
+        @JavascriptInterface public void requestLocation(String tag){runOnUiThread(()->location(tag));}
+        @JavascriptInterface public String routeStatus(){return prefs.getString("route_status","{\"active\":false}");}
+        @JavascriptInterface public String startRoute(String ref,String title){try{JSONObject r=new JSONObject().put("active",true).put("uuid",UUID.randomUUID().toString()).put("program_ref",ref==null?"":ref).put("title",title==null?"Rota de campo":title).put("started_at",now());prefs.edit().putString("route_status",r.toString()).apply();return new JSONObject().put("ok",true).put("route",r).toString();}catch(Exception e){return new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString();}}
+        @JavascriptInterface public String stopRoute(){try{JSONObject r=new JSONObject(prefs.getString("route_status","{}"));if(!r.optBoolean("active"))return new JSONObject().put("ok",false).put("error","Nenhuma rota ativa.").toString();r.put("active",false).put("ended_at",now());JSONObject p=new JSONObject().put("route_uuid",r.optString("uuid")).put("started_at",r.optString("started_at")).put("ended_at",r.optString("ended_at")).put("title",r.optString("title")).put("points",new JSONArray());db.enqueue(r.optString("uuid"),"route.sync",prefs.getInt("group_id",0),p.toString(),"[]");prefs.edit().putString("route_status",r.toString()).apply();return new JSONObject().put("ok",true).put("message","Rota salva no aparelho.").toString();}catch(Exception e){return new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString();}}
+        @JavascriptInterface public String getLocalMapData(){return "{\"routes\":[],\"points\":[]}";}
+        @JavascriptInterface public String savePhoto(String data,String name){return new JSONObjectSafe().put("ok",false).put("error","Fotos serão habilitadas após a primeira sincronização desta versão.").toString();}
+        @JavascriptInterface public void openCamera(String tag){js("agroCameraResult",tag+"|{\"ok\":false,\"error\":\"Câmera indisponível nesta build universal\"}");}
+        @JavascriptInterface public String producerMedia(String id){return "[]";}
+        @JavascriptInterface public String producerFileData(String id){return "{}";}
+        @JavascriptInterface public String openProducerFile(String id){return "{}";}
+        @JavascriptInterface public void scheduleAutoSync(){if(online())io.execute(()->syncAll());}
+        @JavascriptInterface public String logout(){prefs.edit().remove("token").remove("user").remove("groups").remove("group_id").apply();return new JSONObjectSafe().put("ok",true).toString();}
+        @JavascriptInterface public String startAudio(){return new JSONObjectSafe().put("ok",false).put("error","Áudio não disponível nesta build.").toString();}
+        @JavascriptInterface public String stopAudio(){return new JSONObjectSafe().put("ok",false).put("error","Áudio não disponível nesta build.").toString();}
     }
+    private String deviceId(){String id=Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);return id==null?UUID.randomUUID().toString():id;}
+    private void location(String tag){if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},70);js("agroLocationResult",tag+"|{\"ok\":false,\"error\":\"Autorize o GPS e tente novamente.\"}");return;}try{LocationManager lm=(LocationManager)getSystemService(LOCATION_SERVICE);String provider=lm.isProviderEnabled(LocationManager.GPS_PROVIDER)?LocationManager.GPS_PROVIDER:LocationManager.NETWORK_PROVIDER;Location last=lm.getLastKnownLocation(provider);if(last!=null){sendLoc(tag,last);return;}LocationListener listener=new LocationListener(){public void onLocationChanged(Location l){lm.removeUpdates(this);sendLoc(tag,l);}public void onStatusChanged(String p,int s,Bundle e){}public void onProviderEnabled(String p){}public void onProviderDisabled(String p){}};lm.requestLocationUpdates(provider,0,0,listener);web.postDelayed(()->{try{lm.removeUpdates(listener);}catch(Exception ignored){}},15000);}catch(Exception e){js("agroLocationResult",tag+"|"+new JSONObjectSafe().put("ok",false).put("error",e.getMessage()).toString());}}
+    private void sendLoc(String tag,Location l){try{JSONObject j=new JSONObject().put("ok",true).put("latitude",l.getLatitude()).put("longitude",l.getLongitude()).put("accuracy",l.hasAccuracy()?l.getAccuracy():JSONObject.NULL).put("captured_at",now());js("agroLocationResult",tag+"|"+j.toString());}catch(Exception ignored){}}
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        webView.saveState(outState);
-        super.onSaveInstanceState(outState);
-    }
+    static class JSONObjectSafe{private final JSONObject j=new JSONObject();JSONObjectSafe put(String k,Object v){try{j.put(k,v);}catch(Exception ignored){}return this;}public String toString(){return j.toString();}}
 
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack(); else super.onBackPressed();
+    static class Db extends SQLiteOpenHelper{
+        Db(Context c){super(c,"agrodominium_v3_offline.db",null,1);}public void onCreate(SQLiteDatabase d){d.execSQL("CREATE TABLE snapshot(id INTEGER PRIMARY KEY,json TEXT NOT NULL,updated_at INTEGER NOT NULL)");d.execSQL("CREATE TABLE sync_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,client_uuid TEXT UNIQUE NOT NULL,type TEXT NOT NULL,group_id INTEGER,payload_json TEXT NOT NULL,photos_json TEXT,status TEXT NOT NULL DEFAULT 'PENDING',attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,response_json TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)");d.execSQL("CREATE TABLE estimate_drafts(uuid TEXT PRIMARY KEY,payload_json TEXT NOT NULL,photos_json TEXT,updated_at INTEGER NOT NULL)");}public void onUpgrade(SQLiteDatabase d,int o,int n){}
+        void saveSnapshot(String s){ContentValues v=new ContentValues();v.put("id",1);v.put("json",s);v.put("updated_at",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("snapshot",null,v,SQLiteDatabase.CONFLICT_REPLACE);}String snapshot(){Cursor c=getReadableDatabase().rawQuery("SELECT json FROM snapshot WHERE id=1",null);try{return c.moveToFirst()?c.getString(0):null;}finally{c.close();}}boolean hasSnapshot(){return snapshot()!=null;}
+        void enqueue(String uuid,String type,int gid,String payload,String photos){ContentValues v=new ContentValues();v.put("client_uuid",uuid);v.put("type",type);v.put("group_id",gid);v.put("payload_json",payload);v.put("photos_json",photos==null?"[]":photos);v.put("status","PENDING");v.put("created_at",System.currentTimeMillis());v.put("updated_at",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("sync_queue",null,v,SQLiteDatabase.CONFLICT_IGNORE);}int pendingCount(){Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM sync_queue WHERE status!='SYNCED'",null);try{return c.moveToFirst()?c.getInt(0):0;}finally{c.close();}}
+        String queueJson(){JSONArray a=new JSONArray();Cursor c=getReadableDatabase().rawQuery("SELECT id,client_uuid,type,group_id,payload_json,status,attempts,last_error,created_at FROM sync_queue ORDER BY id DESC LIMIT 300",null);try{while(c.moveToNext()){JSONObject j=new JSONObjectSafe().put("id",c.getLong(0)).put("client_uuid",c.getString(1)).put("type",c.getString(2)).put("group_id",c.getInt(3)).put("payload_json",c.getString(4)).put("status",c.getString(5)).put("attempts",c.getInt(6)).put("last_error",c.getString(7)).put("created_at",c.getLong(8)).j;a.put(j);}}finally{c.close();}return a.toString();}
+        static class Row{long id;String uuid,type,payload,photos;int groupId;}
+        List<Row> pendingRows(){ArrayList<Row> out=new ArrayList<>();Cursor c=getReadableDatabase().rawQuery("SELECT id,client_uuid,type,group_id,payload_json,photos_json FROM sync_queue WHERE status!='SYNCED' ORDER BY id",null);try{while(c.moveToNext()){Row r=new Row();r.id=c.getLong(0);r.uuid=c.getString(1);r.type=c.getString(2);r.groupId=c.getInt(3);r.payload=c.getString(4);r.photos=c.getString(5);out.add(r);}}finally{c.close();}return out;}
+        void markSynced(long id,String resp){ContentValues v=new ContentValues();v.put("status","SYNCED");v.put("response_json",resp);v.put("last_error","");v.put("updated_at",System.currentTimeMillis());getWritableDatabase().update("sync_queue",v,"id=?",new String[]{String.valueOf(id)});}void markFailed(long id,String err){getWritableDatabase().execSQL("UPDATE sync_queue SET status='FAILED',attempts=attempts+1,last_error=?,updated_at=? WHERE id=?",new Object[]{err,System.currentTimeMillis(),id});}
+        void saveDraft(String uuid,String payload,String photos){ContentValues v=new ContentValues();v.put("uuid",uuid);v.put("payload_json",payload);v.put("photos_json",photos==null?"[]":photos);v.put("updated_at",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("estimate_drafts",null,v,SQLiteDatabase.CONFLICT_REPLACE);}void deleteDraft(String uuid){getWritableDatabase().delete("estimate_drafts","uuid=?",new String[]{uuid});}String draftsJson(){JSONArray a=new JSONArray();Cursor c=getReadableDatabase().rawQuery("SELECT uuid,payload_json,photos_json,updated_at FROM estimate_drafts ORDER BY updated_at DESC",null);try{while(c.moveToNext()){try{a.put(new JSONObject().put("uuid",c.getString(0)).put("payload",new JSONObject(c.getString(1))).put("photos",new JSONArray(c.getString(2))).put("updated_at",c.getLong(3)));}catch(Exception ignored){}}}finally{c.close();}return a.toString();}
     }
 }
