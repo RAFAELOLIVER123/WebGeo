@@ -76,8 +76,15 @@ jobs:
           python3 v35_overlay/apply_v353.py
           grep -q "V3.5.3 — pull confirmado" android-build/app/src/main/assets/app/app-v3.js
           grep -q "mergeChatDirectory353" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
-          grep -q "base não foi baixada" android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
-          grep -q "versionName '3.5.3'" android-build/app/build.gradle
+
+      - name: Apply V3.6 recovery hotfix
+        run: |
+          python3 v35_overlay/apply_v360.py
+          grep -q "V3.6.0 — RECOVERY" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "applicationId 'com.agrodominium.mobile.v36'" android-build/app/build.gradle
+          grep -q "versionName '3.6.0'" android-build/app/build.gradle
+          grep -q "PONTOS COMPARTILHADOS" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Sincronizar e atualizar base" android-build/app/src/main/assets/app/app-v3.js
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -94,7 +101,7 @@ jobs:
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Validate V3.5.3 APK
+      - name: Validate V3.6 APK
         shell: bash
         run: |
           APK=android-build/app/build/outputs/apk/debug/app-debug.apk
@@ -103,19 +110,20 @@ jobs:
           ENTRIES=$(unzip -Z1 "$APK" | wc -l)
           echo "APK bytes: $SIZE"
           echo "APK entries: $ENTRIES"
-          unzip -p "$APK" assets/app/app-v3.js | grep -q "V3.5.3 — pull confirmado"
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "V3.6.0 — RECOVERY"
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "Pontos compartilhados\|PONTOS COMPARTILHADOS"
           unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
           unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
           test "$SIZE" -gt 1000000
           test "$ENTRIES" -gt 50
-          cp "$APK" AgroDominium_Android_V3_5_3.apk
-          sha256sum AgroDominium_Android_V3_5_3.apk > AgroDominium_Android_V3_5_3.sha256
+          cp "$APK" AgroDominium_Android_V3_6_0_Recovery.apk
+          sha256sum AgroDominium_Android_V3_6_0_Recovery.apk > AgroDominium_Android_V3_6_0_Recovery.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_5_3
+          name: AgroDominium_Android_V3_6_0_Recovery
           path: |
-            AgroDominium_Android_V3_5_3.apk
-            AgroDominium_Android_V3_5_3.sha256
+            AgroDominium_Android_V3_6_0_Recovery.apk
+            AgroDominium_Android_V3_6_0_Recovery.sha256
           retention-days: 30
