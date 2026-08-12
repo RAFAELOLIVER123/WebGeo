@@ -86,8 +86,10 @@ jobs:
         shell: bash
         run: |
           cat \
-            v35_overlay/part0.b64 \
-            v35_overlay/part1.b64 \
+            v35_overlay/part0a.b64 \
+            v35_overlay/part0b.b64 \
+            v35_overlay/part1a.b64 \
+            v35_overlay/part1b.b64 \
             v35_overlay/part2.b64 \
             v35_overlay/part3.b64 \
             | base64 -d > /tmp/v35_patch_bundle.tgz
