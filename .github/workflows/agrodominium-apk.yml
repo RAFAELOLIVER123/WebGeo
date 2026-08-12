@@ -37,9 +37,6 @@ jobs:
           echo "70ee2dcc439b7aac2a66e022d22feae4d3a327bf4c0c0b80e30f6877bf3379c8  /tmp/v3_source.tgz" | sha256sum -c -
           rm -rf android-build/app
           tar -xzf /tmp/v3_source.tgz -C android-build
-          test -f android-build/app/src/main/assets/app/app-v3.js
-          test -f android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
-          test "$(stat -c%s android-build/app/src/main/assets/app/app-v3.js)" -gt 150000
 
       - name: Apply V3.3 realtime overlay
         shell: bash
@@ -64,31 +61,30 @@ jobs:
             cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
             cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"
           done
-          grep -q "applicationId 'com.agrodominium.mobile.v33'" android-build/app/build.gradle
-          grep -q "versionName '3.3.0'" android-build/app/build.gradle
-          grep -q "action=realtime" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
-          grep -q "V3.3 responsividade Android" android-build/app/src/main/assets/app/style-v3.css
-          grep -q "@mipmap/ic_launcher" android-build/app/src/main/AndroidManifest.xml
 
-      - name: Export V3.3 patched source
+      - name: Apply exact V3.4 full overlay
         shell: bash
         run: |
-          tar -czf AgroDominium_V3_3_Source_Patched.tgz -C android-build app
-      - name: Upload V3.3 source artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AgroDominium_V3_3_Source_Patched
-          path: AgroDominium_V3_3_Source_Patched.tgz
-          retention-days: 7
-
-      - name: Apply V3.4 overlay if present
-        shell: bash
-        run: |
-          if [ -f v34_overlay/v34.patch ]; then
-            cd android-build
-            patch -p1 < ../v34_overlay/v34.patch
-            cd ..
-          fi
+          cat \
+            v34_overlay/full00.b64 \
+            v34_overlay/full01.b64 \
+            v34_overlay/full02_03.b64 \
+            v34_overlay/full04_05.b64 \
+            v34_overlay/full06_07.b64 \
+            v34_overlay/full08.b64 \
+            v34_overlay/full09.b64 \
+            v34_overlay/full10.b64 \
+            v34_overlay/full11.b64 \
+            v34_overlay/full12.b64 \
+            v34_overlay/full13.b64 \
+            | base64 -d > /tmp/v34_overlay_full.tgz
+          echo "c37fdd2d8cf9469875101b47f77bdf31d2835d2c23b92054218a64b523b947c5  /tmp/v34_overlay_full.tgz" | sha256sum -c -
+          tar -xzf /tmp/v34_overlay_full.tgz -C android-build
+          grep -q "applicationId 'com.agrodominium.mobile.v34'" android-build/app/build.gradle
+          grep -q "versionName '3.4.0'" android-build/app/build.gradle
+          grep -q "AgroDominium Android V3.4" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Registro GPS" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Manutenção de Veículos" android-build/app/src/main/assets/app/app-v3.js
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -105,7 +101,7 @@ jobs:
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Validate full APK
+      - name: Validate V3.4 APK
         shell: bash
         run: |
           APK=android-build/app/build/outputs/apk/debug/app-debug.apk
@@ -116,8 +112,9 @@ jobs:
           echo "APK entries: $ENTRIES"
           unzip -l "$APK" | grep -E 'assets/app/(index.html|app-v3.js|style-v3.css)'
           unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
-          test "$SIZE" -gt 500000
-          test "$ENTRIES" -gt 30
+          unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
+          test "$SIZE" -gt 1000000
+          test "$ENTRIES" -gt 50
           cp "$APK" AgroDominium_Android_V3_4.apk
           sha256sum AgroDominium_Android_V3_4.apk > AgroDominium_Android_V3_4.sha256
 
