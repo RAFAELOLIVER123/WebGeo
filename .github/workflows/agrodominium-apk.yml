@@ -8,6 +8,7 @@ on:
       - 'v3src_payload/**'
       - 'v33_overlay/**'
       - 'v34_overlay/**'
+      - 'v35_overlay/**'
       - '.github/workflows/agrodominium-apk.yml'
   workflow_dispatch:
 
@@ -80,11 +81,27 @@ jobs:
             | base64 -d > /tmp/v34_overlay_full.tgz
           echo "c37fdd2d8cf9469875101b47f77bdf31d2835d2c23b92054218a64b523b947c5  /tmp/v34_overlay_full.tgz" | sha256sum -c -
           tar -xzf /tmp/v34_overlay_full.tgz -C android-build
-          grep -q "applicationId 'com.agrodominium.mobile.v34'" android-build/app/build.gradle
-          grep -q "versionName '3.4.0'" android-build/app/build.gradle
-          grep -q "AgroDominium Android V3.4" android-build/app/src/main/assets/app/app-v3.js
-          grep -q "Registro GPS" android-build/app/src/main/assets/app/app-v3.js
-          grep -q "Manutenção de Veículos" android-build/app/src/main/assets/app/app-v3.js
+
+      - name: Apply V3.5 chat performance and manual sync overlay
+        shell: bash
+        run: |
+          base64 -d v35_overlay/patch_bundle.b64 > /tmp/v35_patch_bundle.tgz
+          echo "a929bb625b12fda3d0aba3fcf845c63e19e4019405c72ce75106359e1a0598bd  /tmp/v35_patch_bundle.tgz" | sha256sum -c -
+          rm -rf /tmp/v35patch && mkdir -p /tmp/v35patch
+          tar -xzf /tmp/v35_patch_bundle.tgz -C /tmp/v35patch
+          test -f /tmp/v35patch/v35.patch
+          cd android-build
+          patch -p1 < /tmp/v35patch/v35.patch
+          cd ..
+          grep -q "applicationId 'com.agrodominium.mobile.v35'" android-build/app/build.gradle
+          grep -q "versionName '3.5.0'" android-build/app/build.gradle
+          grep -q "requestChatDirectory" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "requestChatHistory" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "playChatAudio" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "syncForce35" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Sincronizar agora" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "pageSize:12" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "chat-person35" android-build/app/src/main/assets/app/style-v3.css
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -101,7 +118,7 @@ jobs:
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Validate V3.4 APK
+      - name: Validate V3.5 APK
         shell: bash
         run: |
           APK=android-build/app/build/outputs/apk/debug/app-debug.apk
@@ -115,14 +132,14 @@ jobs:
           unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
           test "$SIZE" -gt 1000000
           test "$ENTRIES" -gt 50
-          cp "$APK" AgroDominium_Android_V3_4.apk
-          sha256sum AgroDominium_Android_V3_4.apk > AgroDominium_Android_V3_4.sha256
+          cp "$APK" AgroDominium_Android_V3_5.apk
+          sha256sum AgroDominium_Android_V3_5.apk > AgroDominium_Android_V3_5.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_4
+          name: AgroDominium_Android_V3_5
           path: |
-            AgroDominium_Android_V3_4.apk
-            AgroDominium_Android_V3_4.sha256
+            AgroDominium_Android_V3_5.apk
+            AgroDominium_Android_V3_5.sha256
           retention-days: 30
