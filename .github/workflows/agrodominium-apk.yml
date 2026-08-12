@@ -95,7 +95,7 @@ jobs:
           echo "APK bytes: $SIZE"
           echo "APK entries: $ENTRIES"
           unzip -l "$APK" | grep -E 'assets/app/(index.html|app-v3.js|style-v3.css)'
-          unzip -l "$APK" | grep -E 'classes[0-9]*\\.dex'
+          unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
           test "$SIZE" -gt 500000
           test "$ENTRIES" -gt 30
           cp "$APK" AgroDominium_Android_V3_3_Realtime_Offline.apk
