@@ -6,6 +6,7 @@ on:
     paths:
       - 'android-build/**'
       - 'v3src_payload/**'
+      - 'v33_overlay/**'
       - '.github/workflows/agrodominium-apk.yml'
   workflow_dispatch:
 
@@ -38,6 +39,28 @@ jobs:
           test -f android-build/app/src/main/assets/app/app-v3.js
           test -f android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           test "$(stat -c%s android-build/app/src/main/assets/app/app-v3.js)" -gt 150000
+
+      - name: Apply V3.3 realtime overlay
+        shell: bash
+        run: |
+          cat v33_overlay/part00.b64 v33_overlay/part01.b64 v33_overlay/part02.b64 v33_overlay/part03.b64 | base64 -d > /tmp/v33_overlay.tgz
+          echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
+          rm -rf /tmp/v33overlay
+          mkdir -p /tmp/v33overlay
+          tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
+          cd android-build
+          patch -p1 < /tmp/v33overlay/v33.patch
+          cd ..
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "android-build/app/src/main/res/mipmap-$d"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"
+          done
+          grep -q "applicationId 'com.agrodominium.mobile.v33'" android-build/app/build.gradle
+          grep -q "versionName '3.3.0'" android-build/app/build.gradle
+          grep -q "action=realtime" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
+          grep -q "V3.3 responsividade Android" android-build/app/src/main/assets/app/style-v3.css
+          grep -q "@mipmap/ic_launcher" android-build/app/src/main/AndroidManifest.xml
           ls -lh android-build/app/src/main/assets/app/
 
       - name: Java 17
@@ -65,17 +88,17 @@ jobs:
           echo "APK bytes: $SIZE"
           echo "APK entries: $ENTRIES"
           unzip -l "$APK" | grep -E 'assets/app/(index.html|app-v3.js|style-v3.css)'
-          unzip -l "$APK" | grep -E 'classes[0-9]*\.dex'
+          unzip -l "$APK" | grep -E 'classes[0-9]*\\.dex'
           test "$SIZE" -gt 500000
           test "$ENTRIES" -gt 30
-          cp "$APK" AgroDominium_Android_V3_2_Full_Offline.apk
-          sha256sum AgroDominium_Android_V3_2_Full_Offline.apk > AgroDominium_Android_V3_2_Full_Offline.sha256
+          cp "$APK" AgroDominium_Android_V3_3_Realtime_Offline.apk
+          sha256sum AgroDominium_Android_V3_3_Realtime_Offline.apk > AgroDominium_Android_V3_3_Realtime_Offline.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_2_Full_Offline
+          name: AgroDominium_Android_V3_3_Realtime_Offline
           path: |
-            AgroDominium_Android_V3_2_Full_Offline.apk
-            AgroDominium_Android_V3_2_Full_Offline.sha256
+            AgroDominium_Android_V3_3_Realtime_Offline.apk
+            AgroDominium_Android_V3_3_Realtime_Offline.sha256
           retention-days: 30
