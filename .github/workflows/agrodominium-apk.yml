@@ -5,11 +5,12 @@ on:
     branches: [agrodominium-apk-build]
     paths:
       - 'android-build/**'
+      - 'v3src_payload/**'
       - '.github/workflows/agrodominium-apk.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -17,23 +18,64 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Restore full V3 source
+        shell: bash
+        run: |
+          cat \
+            v3src_payload/part00.b64 \
+            v3src_payload/part01.b64 \
+            v3src_payload/rest00.b64 \
+            v3src_payload/rest01.b64 \
+            v3src_payload/rest02.b64 \
+            v3src_payload/rest03.b64 \
+            v3src_payload/rest04.b64 \
+            v3src_payload/rest05.b64 \
+            | base64 -d > /tmp/v3_source.tgz
+          echo "70ee2dcc439b7aac2a66e022d22feae4d3a327bf4c0c0b80e30f6877bf3379c8  /tmp/v3_source.tgz" | sha256sum -c -
+          rm -rf android-build/app
+          tar -xzf /tmp/v3_source.tgz -C android-build
+          test -f android-build/app/src/main/assets/app/app-v3.js
+          test -f android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          test "$(stat -c%s android-build/app/src/main/assets/app/app-v3.js)" -gt 150000
+          ls -lh android-build/app/src/main/assets/app/
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+
       - name: Build APK
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
-      - name: Rename APK
-        run: cp android-build/app/build/outputs/apk/debug/app-debug.apk AgroDominium_Android_V3.apk
+
+      - name: Validate full APK
+        shell: bash
+        run: |
+          APK=android-build/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          SIZE=$(stat -c%s "$APK")
+          ENTRIES=$(unzip -Z1 "$APK" | wc -l)
+          echo "APK bytes: $SIZE"
+          echo "APK entries: $ENTRIES"
+          unzip -l "$APK" | grep -E 'assets/app/(index.html|app-v3.js|style-v3.css)'
+          unzip -l "$APK" | grep -E 'classes[0-9]*\.dex'
+          test "$SIZE" -gt 500000
+          test "$ENTRIES" -gt 30
+          cp "$APK" AgroDominium_Android_V3_2_Full_Offline.apk
+          sha256sum AgroDominium_Android_V3_2_Full_Offline.apk > AgroDominium_Android_V3_2_Full_Offline.sha256
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3
-          path: AgroDominium_Android_V3.apk
+          name: AgroDominium_Android_V3_2_Full_Offline
+          path: |
+            AgroDominium_Android_V3_2_Full_Offline.apk
+            AgroDominium_Android_V3_2_Full_Offline.sha256
           retention-days: 30
