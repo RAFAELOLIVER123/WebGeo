@@ -61,7 +61,7 @@ jobs:
           grep -q "applicationId 'com.agrodominium.mobile.v332integrated'" android-build/app/build.gradle
           grep -q "versionName '3.3.2'" android-build/app/build.gradle
           grep -q "AgroDominium V3.3.2 Integrado" android-build/app/src/main/assets/app/app-v3.js
-          grep -q "Pontos compartilhados" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Mapa compartilhado" android-build/app/src/main/assets/app/app-v3.js
           grep -q "openChatFile(String id)" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           grep -q "public static JSONObject chatFile" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
 
@@ -101,7 +101,7 @@ jobs:
           test "$SIZE" -gt 1000000
           test "$ENTRIES" -gt 50
           unzip -p "$APK" assets/app/app-v3.js | grep -q "AgroDominium V3.3.2 Integrado"
-          unzip -p "$APK" assets/app/app-v3.js | grep -q "Pontos compartilhados"
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "Mapa compartilhado"
           unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
           unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
           cp "$APK" AgroDominium_Android_V3_3_2_Integrado.apk
