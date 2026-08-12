@@ -44,10 +44,31 @@ jobs:
           grep -q "applicationId 'com.agrodominium.mobile.v33'" android-build/app/build.gradle
           grep -q "versionName '3.3.0'" android-build/app/build.gradle
 
-      - name: Rebuild and apply V3.3.1 stable patch only
+      - name: Rebuild checksum-verified V3.3.1 stable patch
         shell: bash
         run: |
-          cat v331_stable/patch00.b64 v331_stable/patch01.b64 | base64 -d | gunzip > /tmp/v331_stable.patch
+          cat \
+            v331_stable/u00.b64 \
+            v331_stable/v00.b64 \
+            v331_stable/v01_exact.b64 \
+            v331_stable/t01.b64 \
+            v331_stable/s01.b64 \
+            v331_stable/t04.b64 \
+            v331_stable/t05.b64 \
+            v331_stable/s03.b64 \
+            v331_stable/t08.b64 \
+            v331_stable/t09.b64 \
+            v331_stable/s05.b64 \
+            > /tmp/v331_patch.gz.b64
+          echo "0226f40ff5e78a3888abc4a74e4deed66fb75d2ab0c37dd56fb2e60e3c597706  /tmp/v331_patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/v331_patch.gz.b64 > /tmp/v331_patch.gz
+          echo "d2422655953908cb17d6cc0a414bb2f339cd0089f1067369bce5c10cad70dc77  /tmp/v331_patch.gz" | sha256sum -c -
+          gunzip -c /tmp/v331_patch.gz > /tmp/v331_stable.patch
+          echo "55b45f79528c01f9e4c4702c85546d19975c83085cb7aec49e690b61c94b3f04  /tmp/v331_stable.patch" | sha256sum -c -
+
+      - name: Apply stable changes only
+        shell: bash
+        run: |
           cd android-build
           patch -p1 < /tmp/v331_stable.patch
           cd ..
@@ -59,11 +80,13 @@ jobs:
           grep -q "downloadChatFile(String id,String mode)" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           grep -q "public static JSONObject chatFile" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
 
-      - name: Verify original V3.3 sync core remains unchanged
+      - name: Verify V3.3 download engine remains intact
         shell: bash
         run: |
           grep -q 'JSONObject b=ApiClient.request(ctx,"bootstrap","GET",null,gid)' android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
           grep -q 'db.saveSnapshot(b.toString())' android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
+          grep -q 'D.produtores' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'D.plantios' android-build/app/src/main/assets/app/app-v3.js
 
       - name: Java 17
         uses: actions/setup-java@v4
