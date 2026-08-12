@@ -1,0 +1,117 @@
+name: AgroDominium V3.3.2 Integrado
+
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths:
+      - 'v332_integrated/**'
+      - '.github/workflows/agrodominium-v332-integrated.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore exact working V3.3 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v3src_payload/part00.b64 v3src_payload/part01.b64 v3src_payload/rest00.b64 v3src_payload/rest01.b64 v3src_payload/rest02.b64 v3src_payload/rest03.b64 v3src_payload/rest04.b64 v3src_payload/rest05.b64 | base64 -d > /tmp/v3_source.tgz
+          echo "70ee2dcc439b7aac2a66e022d22feae4d3a327bf4c0c0b80e30f6877bf3379c8  /tmp/v3_source.tgz" | sha256sum -c -
+          rm -rf android-build/app
+          tar -xzf /tmp/v3_source.tgz -C android-build
+          cat v33_overlay/part00.b64 v33_overlay/part01a.b64 v33_overlay/part01b.b64 v33_overlay/part02.b64 v33_overlay/part03a.b64 v33_overlay/part03b.b64 | base64 -d > /tmp/v33_overlay.tgz
+          echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
+          rm -rf /tmp/v33overlay && mkdir -p /tmp/v33overlay
+          tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
+          cd android-build
+          patch -p1 < /tmp/v33overlay/v33.patch
+          cd ..
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "android-build/app/src/main/res/mipmap-$d"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
+            cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"
+          done
+          echo "4c46fc6380a96ecccf1110025263257f0d5884e8151b926326a2a9cda9e671a3  android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java" | sha256sum -c -
+
+      - name: Rebuild checksum-verified V3.3.2 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v332_integrated/part00.b64 v332_integrated/part01.b64 > /tmp/v332.patch.gz.b64
+          echo "18fb1eac3af29f3522dc3e32c426c6e93df3fddc68da66f94893b701a0553a2c  /tmp/v332.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/v332.patch.gz.b64 > /tmp/v332.patch.gz
+          echo "a91d2757999d5806d7a598face33385312166961de4f3cccc80439c28081fe68  /tmp/v332.patch.gz" | sha256sum -c -
+          gunzip -c /tmp/v332.patch.gz > /tmp/v332.patch
+          echo "60538320fdc8edd2910067108e3a63e5178cceacfe80047bad1c8571519f0a57  /tmp/v332.patch" | sha256sum -c -
+
+      - name: Apply integrated changes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android-build
+          patch -p2 < /tmp/v332.patch
+          cd ..
+          grep -q "applicationId 'com.agrodominium.mobile.v332integrated'" android-build/app/build.gradle
+          grep -q "versionName '3.3.2'" android-build/app/build.gradle
+          grep -q "AgroDominium V3.3.2 Integrado" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "Pontos compartilhados" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "openChatFile(String id)" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "public static JSONObject chatFile" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
+
+      - name: Verify original V3.3 sync core remains byte-identical
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "4c46fc6380a96ecccf1110025263257f0d5884e8151b926326a2a9cda9e671a3  android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java" | sha256sum -c -
+          grep -q 'ApiClient.request(ctx,"bootstrap","GET",null,gid)' android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
+          grep -q 'db.saveSnapshot(b.toString())' android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build APK
+        working-directory: android-build
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Validate APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=android-build/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          SIZE=$(stat -c%s "$APK")
+          ENTRIES=$(unzip -Z1 "$APK" | wc -l)
+          echo "APK bytes: $SIZE"
+          echo "APK entries: $ENTRIES"
+          test "$SIZE" -gt 1000000
+          test "$ENTRIES" -gt 50
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "AgroDominium V3.3.2 Integrado"
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "Pontos compartilhados"
+          unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
+          unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
+          cp "$APK" AgroDominium_Android_V3_3_2_Integrado.apk
+          sha256sum AgroDominium_Android_V3_3_2_Integrado.apk > AgroDominium_Android_V3_3_2_Integrado.sha256
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgroDominium_Android_V3_3_2_Integrado
+          path: |
+            AgroDominium_Android_V3_3_2_Integrado.apk
+            AgroDominium_Android_V3_3_2_Integrado.sha256
+          retention-days: 30
