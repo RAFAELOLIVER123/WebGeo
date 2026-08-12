@@ -43,7 +43,14 @@ jobs:
       - name: Apply V3.3 realtime overlay
         shell: bash
         run: |
-          cat v33_overlay/part00.b64 v33_overlay/part01.b64 v33_overlay/part02.b64 v33_overlay/part03.b64 | base64 -d > /tmp/v33_overlay.tgz
+          cat \
+            v33_overlay/part00.b64 \
+            v33_overlay/part01a.b64 \
+            v33_overlay/part01b.b64 \
+            v33_overlay/part02.b64 \
+            v33_overlay/part03a.b64 \
+            v33_overlay/part03b.b64 \
+            | base64 -d > /tmp/v33_overlay.tgz
           echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
           rm -rf /tmp/v33overlay
           mkdir -p /tmp/v33overlay
