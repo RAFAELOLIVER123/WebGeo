@@ -37,9 +37,7 @@ jobs:
           echo "9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33_overlay.tgz" | sha256sum -c -
           rm -rf /tmp/v33overlay && mkdir -p /tmp/v33overlay
           tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
-          cd android-build
-          patch -p1 < /tmp/v33overlay/v33.patch
-          cd ..
+          cd android-build && patch -p1 < /tmp/v33overlay/v33.patch && cd ..
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             mkdir -p "android-build/app/src/main/res/mipmap-$d"
             cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"
@@ -60,17 +58,22 @@ jobs:
           echo "923e99399f72ea6a82edad9d18af0c80b03395cb34a9272dd4d990751d4b9491  /tmp/v35_patch_bundle.tgz" | sha256sum -c -
           rm -rf /tmp/v35patch && mkdir -p /tmp/v35patch
           tar -xzf /tmp/v35_patch_bundle.tgz -C /tmp/v35patch
-          cd android-build
-          patch -p1 < /tmp/v35patch/v35.patch
-          cd ..
+          cd android-build && patch -p1 < /tmp/v35patch/v35.patch && cd ..
 
       - name: Apply V3.5.1 stability hotfix
         shell: bash
         run: |
           python3 v35_overlay/apply_v351.py
           grep -q "V3.5.1 — estabilidade" android-build/app/src/main/assets/app/app-v3.js
-          grep -q "versionName '3.5.1'" android-build/app/build.gradle
-          if grep -q "new MutationObserver(()=>setTimeout(post35,0))" android-build/app/src/main/assets/app/app-v3.js; then exit 1; fi
+
+      - name: Apply V3.5.2 chat and download hotfix
+        shell: bash
+        run: |
+          python3 v35_overlay/apply_v352.py
+          grep -q "V3.5.2 — chat mobile" android-build/app/src/main/assets/app/app-v3.js
+          grep -q "downloadChatFile(String id,String mode)" android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q "versionName '3.5.2'" android-build/app/build.gradle
+          grep -q 'WRITE_EXTERNAL_STORAGE' android-build/app/src/main/AndroidManifest.xml
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -87,7 +90,7 @@ jobs:
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Validate V3.5.1 APK
+      - name: Validate V3.5.2 APK
         shell: bash
         run: |
           APK=android-build/app/build/outputs/apk/debug/app-debug.apk
@@ -96,18 +99,19 @@ jobs:
           ENTRIES=$(unzip -Z1 "$APK" | wc -l)
           echo "APK bytes: $SIZE"
           echo "APK entries: $ENTRIES"
-          unzip -p "$APK" assets/app/app-v3.js | grep -q "V3.5.1 — estabilidade"
+          unzip -p "$APK" assets/app/app-v3.js | grep -q "V3.5.2 — chat mobile"
           unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
+          unzip -l "$APK" | grep -E 'mipmap-.*/ic_launcher.png'
           test "$SIZE" -gt 1000000
           test "$ENTRIES" -gt 50
-          cp "$APK" AgroDominium_Android_V3_5_1.apk
-          sha256sum AgroDominium_Android_V3_5_1.apk > AgroDominium_Android_V3_5_1.sha256
+          cp "$APK" AgroDominium_Android_V3_5_2.apk
+          sha256sum AgroDominium_Android_V3_5_2.apk > AgroDominium_Android_V3_5_2.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_5_1
+          name: AgroDominium_Android_V3_5_2
           path: |
-            AgroDominium_Android_V3_5_1.apk
-            AgroDominium_Android_V3_5_1.sha256
+            AgroDominium_Android_V3_5_2.apk
+            AgroDominium_Android_V3_5_2.sha256
           retention-days: 30
