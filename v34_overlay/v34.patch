@@ -1,0 +1,445 @@
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -5,11 +5,11 @@
+     compileSdk 35
+ 
+     defaultConfig {
+-        applicationId 'com.agrodominium.mobile.v33'
++        applicationId 'com.agrodominium.mobile.v34'
+         minSdk 21
+         targetSdk 35
+-        versionCode 33
+-        versionName '3.3.0'
++        versionCode 34
++        versionName '3.4.0'
+     }
+ }
+ 
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -21,7 +21,7 @@
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
+-            android:screenOrientation="portrait"
+-            android:windowSoftInputMode="adjustResize">
++            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
++            android:windowSoftInputMode="adjustResize">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+--- a/app/src/main/assets/app/app-v3.js
++++ b/app/src/main/assets/app/app-v3.js
+@@ -4801,3 +4801,1394 @@
+   window.addEventListener('resize',applyViewportV33);
+   if(window.visualViewport) window.visualViewport.addEventListener('resize',applyViewportV33);
+ })();
++
++/* =============================================================
++   AgroDominium Android V3.4
++   - Navegação em pilha (voltar apenas uma tela)
++   - Chat unificado com áudio, imagem e arquivo
++   - Deduplicação por app_client_uuid
++   - Ficha ampliada da estimativa em 10% exatos
++   - Produtor completo + rota GPS
++   - Meus Registros / diagnóstico de sincronização
++   - Manutenção de Veículos + ajuste solicitado editável
++   ============================================================= */
++(function(){
++'use strict';
++
++const V34={
++  stack:[], current:null, restoring:false, chat:{convId:0,title:'',messages:[],busy:false},
++  estimateObserver:null, routeWatch:null
++};
++window.V34=V34;
++
++function esc34(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
++function js34(v){ return JSON.stringify(String(v==null?'':v)).replace(/</g,'\\u003c'); }
++function n34(v){ const x=Number(String(v??'').replace(',','.')); return Number.isFinite(x)?x:0; }
++function arr34(v){ return Array.isArray(v)?v:[]; }
++function now34(){ return new Date().toISOString(); }
++function normType34(t){ return String(t||'').trim().toUpperCase(); }
++function fmtDate34(v){ try{return new Date(v).toLocaleString('pt-BR')}catch(e){return String(v||'')} }
++function D34(){ return window.D||{}; }
++function body34(){ return document.getElementById('body')||document.querySelector('main')||document.body; }
++function title34(){ return document.getElementById('title')||document.querySelector('.title'); }
++function tabbar34(){ return document.getElementById('tabbar'); }
++
++function screenState34(){
++  const b=body34(); const t=title34(); const tb=tabbar34();
++  return {html:b?b.innerHTML:'', title:t?t.textContent:'', tab:tb?tb.innerHTML:'', scroll:window.scrollY||0,
++    chat:JSON.parse(JSON.stringify(V34.chat||{}))};
++}
++function push34(){ if(V34.restoring) return; const s=screenState34(); if(s.html) V34.stack.push(s); if(V34.stack.length>30)V34.stack.shift(); }
++function restore34(s){
++  if(!s)return false; V34.restoring=true;
++  const b=body34(); if(b)b.innerHTML=s.html||'';
++  const t=title34(); if(t)t.textContent=s.title||'';
++  const tb=tabbar34(); if(tb && s.tab!=null)tb.innerHTML=s.tab;
++  V34.chat=s.chat||V34.chat; dedupeActions34(); replaceText34(); bindDynamic34();
++  requestAnimationFrame(()=>{window.scrollTo(0,s.scroll||0); V34.restoring=false;});
++  return true;
++}
++function back34(){ if(V34.stack.length)return restore34(V34.stack.pop()); if(typeof window.home==='function')return window.home(); }
++
++const oldOpen34=window.open;
++if(typeof oldOpen34==='function')window.open=function(){ push34(); return oldOpen34.apply(this,arguments); };
++const oldNav34=window.nav;
++if(typeof oldNav34==='function')window.nav=function(){ push34(); return oldNav34.apply(this,arguments); };
++window.appBack=back34;
++document.addEventListener('keydown',e=>{ if(e.key==='Escape'){e.preventDefault();back34();} });
++
++function replaceText34(){
++  document.querySelectorAll('button,a,.card,.nav-item,.action,.label,h1,h2,h3,h4').forEach(el=>{
++    if(el.children.length>2)return;
++    let s=el.textContent||'';
++    if(/Registrar ponto/i.test(s)) el.innerHTML=el.innerHTML.replace(/Registrar ponto/gi,'Registro GPS');
++    if(/^\s*Ponto \/ produtor\s*$/i.test(s)) el.textContent='Registro GPS';
++    if(/^\s*Manutenção\s*$/i.test(s)) el.textContent='Manutenção de Veículos';
++    if(/Manutenção da moto/i.test(s)) el.innerHTML=el.innerHTML.replace(/Manutenção da moto/gi,'Manutenção de Veículos');
++  });
++}
++function dedupeActions34(){
++  const seen=new Set();
++  document.querySelectorAll('[onclick],button,a').forEach(el=>{
++    const txt=(el.textContent||'').trim().replace(/\s+/g,' ').toLowerCase();
++    const oc=(el.getAttribute('onclick')||'').replace(/\s+/g,'');
++    if(!txt||!oc)return;
++    if(!/(estimativa|manutenção|manutencao|checklist|webgeo|programa)/i.test(txt))return;
++    const key=txt+'|'+oc;
++    if(seen.has(key)){el.remove();return;} seen.add(key);
++  });
++}
++
++function pendingCount34(){ try{return typeof A!=='undefined'&&A.pending?Number(A.pending()||0):0}catch(e){return 0} }
++function tuneSync34(){
++  const online=navigator.onLine!==false, p=pendingCount34();
++  document.querySelectorAll('[onclick*="sync" i], [onclick*="Sync"], .sync-btn').forEach(el=>{
++    if(online&&p===0)el.style.display='none'; else {el.style.display=''; if(p>0)el.textContent='☁ '+p+' pendente'+(p===1?'':'s');}
++  });
++  let box=document.getElementById('syncDiag34');
++  if(p>0 && !box){ box=document.createElement('button'); box.id='syncDiag34'; box.className='sync-diag34'; box.onclick=()=>myRecords34('pendentes'); box.innerHTML='☁ <b>'+p+'</b> pendente'+(p===1?'':'s')+' · ver detalhes'; document.body.appendChild(box); }
++  if(box){ box.style.display=p>0?'':'none'; box.innerHTML='☁ <b>'+p+'</b> pendente'+(p===1?'':'s')+' · ver detalhes'; }
++}
++
++function addMyRecords34(){
++  const candidates=[...document.querySelectorAll('button,a,.card')];
++  if(document.getElementById('myRecordsBtn34'))return;
++  const homeLike=candidates.find(x=>/sincroniza|meu perfil|configura/i.test(x.textContent||''));
++  if(!homeLike)return;
++  const b=document.createElement('button'); b.id='myRecordsBtn34'; b.className=homeLike.className||'btn';
++  b.innerHTML='🗂️ <span>Meus Registros</span>'; b.onclick=()=>{push34();myRecords34();};
++  homeLike.parentNode.insertBefore(b,homeLike);
++}
++
++const fieldNames34={
++  id:'ID',nome:'Nome',cpf:'CPF',telefone:'Telefone',email:'E-mail',comunidade:'Comunidade',polo:'Polo',municipio:'Município',cidade:'Cidade',estado:'Estado',
++  propriedade:'Propriedade',nome_propriedade:'Propriedade',car:'CAR',caf:'CAF',dap:'DAP',matricula:'Matrícula',tecnico:'Técnico responsável',tecnico_nome:'Técnico responsável',
++  status:'Status',lat:'Latitude',lng:'Longitude',latitude:'Latitude',longitude:'Longitude',area:'Área (ha)',area_ha:'Área (ha)',ano:'Ano',ano_plantio:'Ano de plantio',
++  plantas:'Plantas',numero_plantas:'Número de plantas',plantas_campo:'Plantas no campo',peso_medio:'Peso médio',created_at:'Cadastro',updated_at:'Atualização'
++};
++function friendly34(k){return fieldNames34[k]||String(k).replace(/^paf_/,'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());}
++function useful34(k,v){ if(v==null||v===''||v===false)return false; return !/(senha|password|token|hash|foto_base64|arquivo_base64|deleted|grupo_id|usuario_id)$/i.test(k); }
++function recordGrid34(obj){
++  return '<div class="record-grid34">'+Object.entries(obj||{}).filter(([k,v])=>useful34(k,v)).map(([k,v])=>
++    '<div class="record-field34"><small>'+esc34(friendly34(k))+'</small><strong>'+esc34(typeof v==='object'?JSON.stringify(v):v)+'</strong></div>').join('')+'</div>';
++}
++function plantsExact34(pl){ return n34(pl.numero_plantas||pl.plantas||pl.plantas_campo||pl.qtd_plantas||pl.total_plantas); }
++function areaPlant34(pl){ return n34(pl.area_ha||pl.area||pl.hectares||pl.area_plantio); }
++function totalPlants34(pl){ const e=plantsExact34(pl); return e>0?Math.round(e):Math.max(0,Math.round(areaPlant34(pl)*143)); }
++function sample34(pl){return Math.ceil(totalPlants34(pl)*.10);}
++
++const oldProducerDetail34=window.producerDetail;
++window.producerDetail=function(id){
++  push34(); const D=D34(); const p=arr34(D.produtores).find(x=>String(x.id)===String(id));
++  if(!p && typeof oldProducerDetail34==='function')return oldProducerDetail34(id);
++  const pls=arr34(D.plantios).filter(x=>String(x.produtor_id||x.paf_produtor_id)===String(id));
++  const b=body34(); if(title34())title34().textContent='Produtor';
++  b.innerHTML='<section class="producer34"><header><div><h2>'+esc34(p.nome||'Produtor')+'</h2><p>'+esc34(p.cpf||'')+'</p></div><button class="btn primary" onclick="producerRoute34('+Number(id)+')">🧭 Ver no mapa e rota</button></header>'+
++    '<h3>Dados completos</h3>'+recordGrid34(p)+
++    '<h3>Plantios</h3><div class="plant-list34">'+(pls.length?pls.map(pl=>'<article class="plant34"><div class="plant-top34"><b>'+esc34(pl.ano_plantio||pl.ano||'Plantio')+'</b><span>'+esc34(areaPlant34(pl))+' ha</span></div>'+recordGrid34(pl)+
++      '<div class="sample-summary34"><b>'+totalPlants34(pl).toLocaleString('pt-BR')+' plantas</b><span>10% = '+sample34(pl)+' linhas na ficha ampliada</span>'+(plantsExact34(pl)?'<em>Base: cadastro real</em>':'<em>Base operacional: 143 plantas/ha</em>')+'</div></article>').join(''):'<div class="empty">Nenhum plantio cadastrado.</div>')+'</div>'+
++    '<h3>Arquivos e fotos</h3><div id="producerFiles34" class="files34"><div class="muted">Carregando…</div></div></section>';
++  loadProducerFiles34(id);
++};
++window.produtorDetalhe=window.producerDetail;
++
++function loadProducerFiles34(id){
++  if(!window.A||!A.producerMedia)return;
++  try{ A.producerMedia(Number(id)); }catch(e){}
++}
++window.agroProducerMediaResult=function(json){
++  let j={};try{j=JSON.parse(json||'{}')}catch(e){} const el=document.getElementById('producerFiles34'); if(!el)return;
++  const files=arr34(j.files||j.data||j.arquivos);
++  el.innerHTML=files.length?files.map(f=>'<button class="file-card34" onclick="A.openProducerFile('+Number(f.id)+')"><span>📎</span><div><b>'+esc34(f.nome||f.name||'Arquivo')+'</b><small>'+esc34(f.tipo||f.mime||'')+'</small></div></button>').join(''):'<div class="muted">Nenhum arquivo/foto disponível.</div>';
++};
++
++function coord34(o){ return {lat:n34(o.latitude||o.lat||o.lat_parcela||o.lat_propriedade), lng:n34(o.longitude||o.lng||o.lon||o.long||o.lng_parcela||o.long_parcela)}; }
++window.producerRoute34=function(id){
++  push34(); const D=D34(); const p=arr34(D.produtores).find(x=>String(x.id)===String(id)); const pls=arr34(D.plantios).filter(x=>String(x.produtor_id||x.paf_produtor_id)===String(id));
++  let c=coord34(p||{}); if(!c.lat||!c.lng){for(const x of pls){c=coord34(x);if(c.lat&&c.lng)break;}}
++  if(title34())title34().textContent='Mapa do produtor';
++  body34().innerHTML='<section class="route34"><div class="route-head34"><div><h2>'+esc34(p?.nome||'Produtor')+'</h2><p>'+esc34(p?.comunidade||p?.propriedade||'')+'</p></div><button class="btn" onclick="back34()">← Voltar</button></div>'+
++    '<div id="gpsMe34" class="gps-status34">📍 Buscando sua localização…</div><canvas id="routeCanvas34" width="700" height="440"></canvas><div id="routeDist34" class="route-dist34"></div>'+
++    (c.lat&&c.lng?'<button class="btn primary big34" onclick="A.openNavigation('+c.lat+','+c.lng+')">🧭 Abrir rota no GPS</button>':'<div class="warn">Produtor sem coordenadas cadastradas.</div>')+'</section>';
++  if(!c.lat||!c.lng)return;
++  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos=>drawRoute34(pos.coords.latitude,pos.coords.longitude,c.lat,c.lng),()=>{document.getElementById('gpsMe34').textContent='Não foi possível obter sua localização.'},{enableHighAccuracy:true,timeout:12000,maximumAge:10000});
++};
++window.back34=back34;
++function drawRoute34(a,b,c,d){
++  const st=document.getElementById('gpsMe34'), cv=document.getElementById('routeCanvas34'), dist=document.getElementById('routeDist34'); if(!cv)return;
++  st.innerHTML='📍 Você: <b>'+a.toFixed(6)+', '+b.toFixed(6)+'</b><br>🌴 Produtor: <b>'+c.toFixed(6)+', '+d.toFixed(6)+'</b>';
++  const R=6371, r=x=>x*Math.PI/180, da=r(c-a), db=r(d-b), aa=Math.sin(da/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(db/2)**2; const km=2*R*Math.atan2(Math.sqrt(aa),Math.sqrt(1-aa));
++  dist.innerHTML='Distância em linha reta: <b>'+km.toFixed(2)+' km</b> · use “Abrir rota no GPS” para o trajeto viário.';
++  const x=cv.getContext('2d'), w=cv.width,h=cv.height; x.clearRect(0,0,w,h); x.lineWidth=5; x.strokeStyle='#1f8a55'; x.setLineDash([12,10]);x.beginPath();x.moveTo(95,h-95);x.quadraticCurveTo(w*.55,h*.18,w-95,95);x.stroke(); x.setLineDash([]);
++  x.fillStyle='#176a44';x.beginPath();x.arc(95,h-95,20,0,Math.PI*2);x.fill();x.fillStyle='#fff';x.font='bold 20px sans-serif';x.fillText('EU',80,h-88);
++  x.fillStyle='#e15d3b';x.beginPath();x.arc(w-95,95,20,0,Math.PI*2);x.fill();x.fillStyle='#fff';x.fillText('P',w-102,102);
++}
++
++/* Estimativa – usa cadastro real; sem plantas cadastradas usa 143 plantas/ha. */
++function estimatePlantFromDom34(){
++  const D=D34(); const sel=document.querySelector('[name="plantio_id"],#estPlantio230,#plantio_id'); const id=sel&&sel.value;
++  let pl=arr34(D.plantios).find(x=>String(x.id)===String(id)); if(pl)return pl;
++  const area=document.querySelector('[name="area"],#estArea230,#area'); return {area_ha:n34(area&&area.value)};
++}
++function estimateRows34(){ return [...document.querySelectorAll('.est-row230,.est-row,.amostra-row,[data-est-row]')]; }
++function updateRowLabels34(rows){ rows.forEach((r,i)=>{let h=r.querySelector('.row-title230,.est-row-title,h4,.sample-title'); if(!h){h=document.createElement('div');h.className='sample-title34';r.prepend(h);} h.textContent='Amostra '+String(i+1).padStart(3,'0')+' · Linha '+(i+1); const lin=r.querySelector('[name*="linha"],.linha-input'); if(lin){lin.value=i+1;try{lin.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}} }); }
++function syncEstimateRows34(){
++  const pl=estimatePlantFromDom34(); let total=totalPlants34(pl); const areaEl=document.querySelector('[name="area"],#estArea230,#area');
++  if(!plantsExact34(pl)&&areaEl&&n34(areaEl.value)>0) total=Math.round(n34(areaEl.value)*143);
++  const target=Math.max(1,Math.ceil(total*.10)); let rows=estimateRows34(); let guard=0;
++  while(rows.length<target && guard++<3000){ if(typeof window.estAdd230==='function')window.estAdd230(); else break; rows=estimateRows34(); }
++  guard=0; while(rows.length>target&&guard++<3000){ if(typeof window.estRemove230==='function')window.estRemove230(rows[rows.length-1]); else rows[rows.length-1].remove(); rows=estimateRows34(); }
++  updateRowLabels34(rows);
++  let g=document.getElementById('estimateGuide34'); if(!g){g=document.createElement('div');g.id='estimateGuide34';g.className='estimate-guide34'; const host=document.querySelector('.est-form230,.estimate-form,form')||body34();host.prepend(g);}
++  g.innerHTML='<div><small>Plantas do plantio</small><b>'+total.toLocaleString('pt-BR')+'</b></div><div><small>Amostragem</small><b>10%</b></div><div><small>Linhas da ficha</small><b>'+target+'</b></div><p>'+(plantsExact34(pl)?'Quantidade real do cadastro.':'Cálculo operacional: '+areaPlant34(pl).toLocaleString('pt-BR')+' ha × 143 plantas/ha.')+'</p>';
++}
++const oldEstForm34=window.estimateForm228;
++if(typeof oldEstForm34==='function')window.estimateForm228=function(){ push34(); const r=oldEstForm34.apply(this,arguments); setTimeout(()=>{syncEstimateRows34(); bindEstimate34();},50); return r; };
++function bindEstimate34(){
++  document.querySelectorAll('[name="plantio_id"],#estPlantio230,#plantio_id,[name="area"],#estArea230,#area').forEach(el=>{ if(el.dataset.v34)return;el.dataset.v34=1;el.addEventListener('change',()=>setTimeout(syncEstimateRows34,30)); el.addEventListener('input',()=>{if(/area/i.test(el.name||el.id))setTimeout(syncEstimateRows34,30)}); });
++  if(!document.getElementById('densityInfo34')){const g=document.getElementById('estimateGuide34');if(g){const d=document.createElement('div');d.id='densityInfo34';d.className='density-info34';d.innerHTML='<b>Ficha ampliada:</b> uma linha para cada planta da amostra. Se o plantio não possuir quantidade cadastrada, o App considera <b>143 plantas/ha</b>.';g.after(d);}}
++}
++
++/* Chat V3.4 */
++function chatServer34(){ return arr34(D34().chat_mensagens||D34().mensagens||V34.chat.messages); }
++function chatConvs34(){ return arr34(D34().chat_conversas||D34().conversas); }
++function normalizeAtt34(m){
++  const a=[]; const t=normType34(m.tipo||m.type); if(m.arquivo_id||m.file_id||m.arquivo_url||m.file_url||['IMAGEM','AUDIO','ARQUIVO','MISTO'].includes(t)) a.push({id:m.arquivo_id||m.file_id||m.id,nome:m.arquivo_nome||m.file_name||m.nome_arquivo||'',mime:m.mime||m.arquivo_mime||'',tipo:t,url:m.arquivo_url||m.file_url||'',local:m.local_path||''}); return a;
++}
++function groupChat34(list){
++  const mp=new Map();
++  list.forEach(m=>{ const key=String(m.app_client_uuid||m.client_uuid||('srv:'+m.id)); if(!mp.has(key))mp.set(key,{key,id:m.id,conv:m.conversa_id||m.conversation_id,uid:m.usuario_id||m.user_id,user:m.usuario_nome||m.user_name||m.nome_usuario||'',text:'',at:[],created:m.created_at||m.data_hora||'',server:true}); const g=mp.get(key); if(m.mensagem||m.texto||m.text)g.text=g.text||m.mensagem||m.texto||m.text; g.at.push(...normalizeAtt34(m)); if(m.id>g.id)g.id=m.id; });
++  const pending=[]; try{const q=(typeof A!=='undefined'&&A.queueList)?JSON.parse(A.queueList()||'[]'):[]; q.forEach(r=>{if(r.type!=='chat.message')return;let p={};try{p=JSON.parse(r.payload_json||'{}')}catch(e){};if(String(p.conversa_id)!==String(V34.chat.convId))return;const uuid=r.client_uuid;if(mp.has(uuid))return;pending.push({key:uuid,id:0,conv:p.conversa_id,uid:D34().user?.id||0,user:'Você',text:p.mensagem||'',at:(()=>{let x=[];try{x=JSON.parse(r.photos_json||'[]')}catch(e){};return x.map(z=>({id:0,nome:z.nome||z.name||'',mime:z.mime||'',tipo:z.tipo||'',local:z.local_path||z.path||''}))})(),created:r.created_at||now34(),server:false,status:r.status,error:r.last_error});});}catch(e){}
++  return [...mp.values(),...pending].sort((a,b)=>String(a.created).localeCompare(String(b.created)));
++}
++function own34(m){ const uid=D34().user?.id||D34().usuario?.id; return String(m.uid)===String(uid)||(!m.server&&m.user==='Você'); }
++function attHtml34(a,idx,key){
++  const mime=String(a.mime||'').toLowerCase(), typ=normType34(a.tipo), name=esc34(a.nome||'Arquivo');
++  if(mime.startsWith('image/')||typ==='IMAGEM')return '<button class="chat-img34" onclick="chatViewAttachment34('+js34(key)+','+idx+')"><span>🖼️</span><b>'+name+'</b><small>Toque para visualizar</small></button>';
++  if(mime.startsWith('audio/')||typ==='AUDIO')return '<div class="chat-audio34"><button onclick="chatPlayAttachment34('+js34(key)+','+idx+',this)">▶ Ouvir áudio</button><div class="audio-host34"></div></div>';
++  return '<button class="chat-file34" onclick="chatOpenAttachment34('+js34(key)+','+idx+')"><span>📎</span><div><b>'+name+'</b><small>'+esc34(a.mime||'Arquivo')+'</small></div></button>';
++}
++function bubble34(m){return '<div class="chat-bubble-row34 '+(own34(m)?'mine34':'other34')+'"><article class="chat-bubble34"><small>'+esc34(own34(m)?'Você':(m.user||'Usuário'))+'</small>'+(m.text?'<div class="chat-text34">'+esc34(m.text)+'</div>':'')+(m.at||[]).map((a,i)=>attHtml34(a,i,m.key)).join('')+'<footer>'+esc34(fmtDate34(m.created))+(m.server?'':' · '+esc34(m.status||'PENDENTE'))+(m.error?'<em>'+esc34(m.error)+'</em>':'')+'</footer></article></div>';}
++function chatFind34(key){return groupChat34(chatServer34()).find(x=>x.key===key);}
++
++window.chat34=function(){push34(); if(title34())title34().textContent='Mensagens'; const cs=chatConvs34(); body34().innerHTML='<section class="chat-list34"><header><h2>Mensagens</h2><p>Atualização automática enquanto estiver online.</p></header><div>'+ (cs.length?cs.map(c=>'<button class="conv34" onclick="chatRoom34('+Number(c.id)+','+js34(c.nome||c.titulo||c.assunto||'Conversa')+')"><span>💬</span><div><b>'+esc34(c.nome||c.titulo||c.assunto||'Conversa')+'</b><small>'+esc34(c.ultima_mensagem||c.last_message||'Abrir conversa')+'</small></div></button>').join(''):'<div class="empty">Nenhuma conversa disponível.</div>')+'</div></section>';};
++window.chatRoom34=function(id,title){push34();V34.chat.convId=Number(id);V34.chat.title=title||'Conversa';renderChatRoom34();};
++function renderChatRoom34(){
++  if(title34())title34().textContent=V34.chat.title||'Conversa'; const msgs=groupChat34(chatServer34().filter(m=>String(m.conversa_id||m.conversation_id)===String(V34.chat.convId)));
++  body34().innerHTML='<section class="chat-room34"><header><button class="back34" onclick="back34()">←</button><div><b>'+esc34(V34.chat.title)+'</b><small id="chatOnline34">'+(navigator.onLine?'● Online':'○ Offline')+'</small></div></header><div id="chatMsgs34" class="chat-msgs34">'+msgs.map(bubble34).join('')+'</div><div id="chatPreview34" class="chat-preview34"></div><div class="chat-compose34"><button title="Foto" onclick="chatCamera34()">📷</button><button title="Arquivo" onclick="chatFile34()">📎</button><button title="Áudio" onclick="chatAudio34(this)">🎙️</button><textarea id="chatText34" rows="1" placeholder="Mensagem"></textarea><button class="send34" onclick="sendChat34()">➤</button></div></section>';
++  setTimeout(()=>{const x=document.getElementById('chatMsgs34');if(x)x.scrollTop=x.scrollHeight},20);
++}
++let chatAtt34=[];
++function previewChatAtt34(){const p=document.getElementById('chatPreview34');if(!p)return;p.innerHTML=chatAtt34.map((a,i)=>'<span>'+esc34(a.tipo==='AUDIO'?'🎙️ Áudio':a.tipo==='IMAGEM'?'🖼️ '+(a.nome||'Foto'):'📎 '+(a.nome||'Arquivo'))+' <button onclick="chatAtt34.splice('+i+',1);previewChatAtt34()">×</button></span>').join('');}
++window.previewChatAtt34=previewChatAtt34;
++window.chatCamera34=function(){try{A.takeCameraPhoto('chat34')}catch(e){toast?.('Câmera indisponível')} };
++window.chatFile34=function(){ const i=document.createElement('input');i.type='file';i.accept='image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip';i.onchange=()=>{const f=i.files&&i.files[0];if(!f)return;if(f.size>25*1024*1024){alert('Arquivo acima de 25 MB.');return;}const r=new FileReader();r.onload=()=>{try{const path=A.saveAttachment(String(r.result),f.name,f.type||'application/octet-stream');chatAtt34.push({local_path:path,nome:f.name,mime:f.type||'application/octet-stream',tipo:(f.type||'').startsWith('image/')?'IMAGEM':(f.type||'').startsWith('audio/')?'AUDIO':'ARQUIVO'});previewChatAtt34();}catch(e){alert('Não foi possível preparar o arquivo.')}};r.readAsDataURL(f);};i.click(); };
++window.chatAudio34=function(btn){try{A.toggleAudio('chat34');btn.classList.toggle('recording34');btn.textContent=btn.classList.contains('recording34')?'⏹️':'🎙️';}catch(e){alert('Áudio indisponível.')}};
++window.agroPhoto=function(tag,path){ if(tag==='chat34'){chatAtt34.push({local_path:path,nome:'foto_'+Date.now()+'.jpg',mime:'image/jpeg',tipo:'IMAGEM'});previewChatAtt34();return;} if(tag&&/^estimate|estimativa/i.test(tag)){try{sessionStorage.setItem('v34_estimate_photo',path)}catch(e){} } if(typeof window.__agroPhotoPrev==='function')window.__agroPhotoPrev(tag,path); };
++if(!window.__agroPhotoPrev) window.__agroPhotoPrev=window.agroPhotoPrev||null;
++window.agroAudio=function(tag,path,dur){if(tag==='chat34'){chatAtt34.push({local_path:path,nome:'audio_'+Date.now()+'.m4a',mime:'audio/mp4',tipo:'AUDIO',duracao_segundos:dur||0});previewChatAtt34();const b=document.querySelector('.chat-compose34 button.recording34');if(b){b.classList.remove('recording34');b.textContent='🎙️'}return;}if(typeof window.__agroAudioPrev==='function')window.__agroAudioPrev(tag,path,dur);};
++window.sendChat34=function(){ const text=(document.getElementById('chatText34')?.value||'').trim(); if(!text&&!chatAtt34.length)return; const payload={conversa_id:V34.chat.convId,mensagem:text,tipo:chatAtt34.length?(text?'MISTO':(chatAtt34[0]?.tipo||'ARQUIVO')):'TEXTO'}; try{A.queueOperation('chat.message',JSON.stringify(payload),JSON.stringify(chatAtt34));document.getElementById('chatText34').value='';chatAtt34=[];previewChatAtt34();setTimeout(renderChatRoom34,120);}catch(e){alert('Erro ao enviar: '+e.message);} };
++window.chatPlayAttachment34=function(key,idx,btn){ const m=chatFind34(key),a=m&&m.at[idx];if(!a)return;if(a.local){try{const data=A.localMediaData(a.local,a.mime||'audio/mp4');injectAudio34(btn,data,a.mime)}catch(e){};return;}try{A.chatMediaData(Number(a.id));btn.dataset.waiting='1';window.__audioBtn34=btn;}catch(e){alert('Não foi possível abrir o áudio.')} };
++function injectAudio34(btn,data,mime){const host=btn.parentNode.querySelector('.audio-host34');host.innerHTML='<audio controls autoplay src="data:'+esc34(mime||'audio/mp4')+';base64,'+data+'"></audio>';btn.style.display='none';}
++window.agroChatMediaResult=function(json){let j={};try{j=JSON.parse(json||'{}')}catch(e){};const b=window.__audioBtn34;if(!b)return;if(j.ok&&j.data)injectAudio34(b,j.data,j.mime||'audio/mp4');else alert(j.error||'Áudio indisponível.');window.__audioBtn34=null;};
++window.chatOpenAttachment34=function(key,idx){const m=chatFind34(key),a=m&&m.at[idx];if(!a)return;try{if(a.local)A.openLocalFile(a.local,a.mime||'*/*',a.nome||'arquivo');else A.openChatFile(Number(a.id));}catch(e){alert('Não foi possível abrir o arquivo.')}};
++window.chatViewAttachment34=function(key,idx){const m=chatFind34(key),a=m&&m.at[idx];if(!a)return;if(a.local){try{showImg34('data:'+(a.mime||'image/jpeg')+';base64,'+A.localMediaData(a.local,a.mime||'image/jpeg'))}catch(e){};return;}window.__imgWait34=a;try{A.chatMediaData(Number(a.id));window.__imgMode34=true;}catch(e){}};
++function showImg34(src){let v=document.getElementById('imgViewer34');if(!v){v=document.createElement('div');v.id='imgViewer34';v.className='img-viewer34';v.onclick=()=>v.remove();document.body.appendChild(v)}v.innerHTML='<button>×</button><img src="'+src+'">';}
++const prevMediaResult34=window.agroChatMediaResult;
++window.agroChatMediaResult=function(json){let j={};try{j=JSON.parse(json||'{}')}catch(e){};if(window.__imgMode34){window.__imgMode34=false;if(j.ok&&j.data)showImg34('data:'+(j.mime||'image/jpeg')+';base64,'+j.data);else alert(j.error||'Imagem indisponível.');return;}let b=window.__audioBtn34;if(b){if(j.ok&&j.data)injectAudio34(b,j.data,j.mime||'audio/mp4');else alert(j.error||'Áudio indisponível.');window.__audioBtn34=null;return;}if(typeof prevMediaResult34==='function')prevMediaResult34(json);};
++
++const prevRealtime34=window.agroRealtimeResult;
++window.agroRealtimeResult=function(json){let j={};try{j=JSON.parse(json||'{}')}catch(e){};if(j.ok){if(j.chat_mensagens||j.messages){D34().chat_mensagens=j.chat_mensagens||j.messages; if(document.querySelector('.chat-room34'))renderChatRoom34();} if(j.programacoes)D34().programacoes=j.programacoes; if(j.notifications)D34().notificacoes=j.notifications;} if(typeof prevRealtime34==='function')try{prevRealtime34(json)}catch(e){}; };
++
++/* Manutenção de Veículos */
++function vehicleType34(v){const s=normType34(v.tipo||v.tipo_veiculo||v.categoria||v.modelo);return /MOTO|MOTOC/.test(s)?'MOTO':'CARRO';}
++function maintenanceItems34(v){const typ=vehicleType34(v);return arr34(D34().manutencao_itens||D34().paf_manutencao_moto_itens).filter(i=>{const t=normType34(i.tipo_veiculo||i.tipo||'MOTO');return t==='GERAL'||t===typ;});}
++window.maintenanceForm231=function(existingId){
++  push34();const D=D34(),vs=arr34(D.veiculos), old=existingId?arr34(D.manutencoes).find(x=>String(x.id)===String(existingId)):null;if(title34())title34().textContent='Manutenção de Veículos';
++  body34().innerHTML='<section class="maint34"><header><h2>'+(old?'Editar solicitação':'Nova solicitação')+'</h2>'+(old&&old.status==='AJUSTE_SOLICITADO'?'<div class="warn">Ajuste solicitado: '+esc34(old.decisao_observacao||old.observacao_decisao||old.justificativa_ajuste||'Revise as informações e reenvie.')+'</div>':'')+'</header><label>Veículo<select id="maintVehicle34"><option value="">Selecione</option>'+vs.map(v=>'<option value="'+v.id+'" '+(String(old?.veiculo_id)===String(v.id)?'selected':'')+'>'+esc34((v.placa? v.placa+' · ':'')+(v.modelo||v.descricao||v.nome||'Veículo'))+'</option>').join('')+'</select></label><div id="maintType34"></div><div id="maintItems34"></div><label>Odômetro<input id="maintOdo34" inputmode="decimal" value="'+esc34(old?.odometro||old?.km||'')+'"></label><label>Observação<textarea id="maintObs34">'+esc34(old?.observacao||'')+'</textarea></label><div class="photo-actions34"><button onclick="A.takeCameraPhoto(\'maintenance34\')">📷 Tirar foto</button><button onclick="maintenanceGallery34()">🖼️ Galeria</button></div><div id="maintPhotos34"></div><button class="btn primary big34" onclick="saveMaintenance34('+Number(existingId||0)+')">'+(old?'Reenviar para aprovação':'Enviar solicitação')+'</button></section>';
++  const sel=document.getElementById('maintVehicle34');sel.onchange=renderMaintItems34;renderMaintItems34();if(old){setTimeout(()=>{let ids=String(old.item_ids||'').split(',');document.querySelectorAll('#maintItems34 input[type=checkbox]').forEach(x=>x.checked=ids.includes(x.value));},20)}
++};
++function renderMaintItems34(){const D=D34(),v=arr34(D.veiculos).find(x=>String(x.id)===String(document.getElementById('maintVehicle34')?.value));const box=document.getElementById('maintItems34'),t=document.getElementById('maintType34');if(!v){box.innerHTML='';t.innerHTML='';return;}const typ=vehicleType34(v);t.innerHTML='<span class="vehicle-type34">'+(typ==='MOTO'?'🏍️ MOTO':'🚙 CARRO')+'</span>';const its=maintenanceItems34(v);box.innerHTML='<h3>Checklist de manutenção</h3>'+its.map(i=>'<label class="check34"><input type="checkbox" value="'+i.id+'"><span>'+esc34(i.nome||i.descricao||i.item||'Item')+'</span></label>').join('');}
++let maintPhotos34=[];
++window.maintenanceGallery34=function(){const i=document.createElement('input');i.type='file';i.accept='image/*';i.multiple=true;i.onchange=()=>[...(i.files||[])].forEach(f=>{const r=new FileReader;r.onload=()=>{const p=A.saveAttachment(String(r.result),f.name,f.type||'image/jpeg');maintPhotos34.push({local_path:p,nome:f.name,mime:f.type||'image/jpeg',tipo:'IMAGEM'});renderMaintPhotos34()};r.readAsDataURL(f)});i.click();};
++function renderMaintPhotos34(){const x=document.getElementById('maintPhotos34');if(x)x.innerHTML=maintPhotos34.map((p,i)=>'<span>📷 '+esc34(p.nome)+' <button onclick="maintPhotos34.splice('+i+',1);renderMaintPhotos34()">×</button></span>').join('');}
++window.renderMaintPhotos34=renderMaintPhotos34;
++window.saveMaintenance34=function(id){const veiculo_id=n34(document.getElementById('maintVehicle34')?.value),items=[...document.querySelectorAll('#maintItems34 input:checked')].map(x=>Number(x.value)),odometro=n34(document.getElementById('maintOdo34')?.value),observacao=document.getElementById('maintObs34')?.value||'';if(!veiculo_id){alert('Selecione o veículo.');return;}const payload={id:id||undefined,veiculo_id,item_ids:items,odometro,observacao};A.queueOperation(id?'maintenance.update':'maintenance.request',JSON.stringify(payload),JSON.stringify(maintPhotos34));maintPhotos34=[];alert(navigator.onLine?'Solicitação enviada. Se houver falha ela ficará em Meus Registros.':'Sem internet: solicitação salva no aparelho e será enviada automaticamente.');myRecords34('manutencao');};
++const oldMaintDetail34=window.maintenanceDetail231;
++if(typeof oldMaintDetail34==='function')window.maintenanceDetail231=function(id){const r=oldMaintDetail34.apply(this,arguments);setTimeout(()=>{const m=arr34(D34().manutencoes).find(x=>String(x.id)===String(id)),prof=normType34(D34().user?.perfil_codigo||D34().perfil_codigo||'');if(m&&m.status==='AJUSTE_SOLICITADO'&&/TECNICO/.test(prof)){const b=document.createElement('button');b.className='btn primary';b.textContent='✏️ Editar e reenviar';b.onclick=()=>maintenanceForm231(id);body34().appendChild(b);}},30);return r;};
++
++/* Registro GPS */
++function replaceGps34(){replaceText34();document.querySelectorAll('[onclick*="point" i],[onclick*="ponto" i]').forEach(x=>{if(/registrar|ponto/i.test(x.textContent||''))x.textContent='📍 Registro GPS';});}
++
++/* Meus Registros */
++window.myRecords34=function(filter){push34();const D=D34();let q=[];try{q=(typeof A!=='undefined'&&A.queueList)?JSON.parse(A.queueList()||'[]'):[]}catch(e){};const sections={programacao:arr34(D.programacoes),estimativa:arr34(D.estimativas||D.levantamentos),checklist:arr34(D.checklists||D.checklist_veiculos),gps:arr34(D.pontos||D.route_points||D.atividades),manutencao:arr34(D.manutencoes)};if(title34())title34().textContent='Meus Registros';const errors=q.filter(x=>x.status==='FAILED'||x.last_error);body34().innerHTML='<section class="my-records34"><header><h2>Meus Registros</h2><p>Tudo o que você criou no aplicativo e o estado de envio para a Plataforma.</p></header><div class="record-kpis34">'+Object.entries(sections).map(([k,v])=>'<button onclick="myRecords34('+js34(k)+')"><b>'+v.length+'</b><small>'+esc34(k==='gps'?'GPS':k.charAt(0).toUpperCase()+k.slice(1))+'</small></button>').join('')+'<button onclick="myRecords34(\'pendentes\')"><b>'+q.length+'</b><small>Pendentes</small></button></div>'+ (errors.length?'<div class="sync-errors34"><h3>Falhas de envio</h3>'+errors.map(r=>'<article><b>'+esc34(queueName?queueName(r.type):r.type)+'</b><small>'+esc34(r.last_error||'Aguardando nova tentativa')+'</small><button onclick="A.retryQueue('+Number(r.id)+');setTimeout(()=>myRecords34(\'pendentes\'),500)">Tentar novamente</button></article>').join('')+'</div>':'')+'<div id="recordsList34">'+recordsList34(filter,sections,q)+'</div></section>';};
++function recordsList34(filter,s,q){if(filter==='pendentes')return q.length?q.map(r=>'<article class="record-row34"><div><b>'+esc34(typeof queueName==='function'?queueName(r.type):r.type)+'</b><small>'+esc34(r.status||'PENDENTE')+' · '+esc34(fmtDate34(r.created_at))+'</small></div><span>'+esc34(r.last_error||'')+'</span></article>').join(''):'<div class="ok34">✓ Nenhuma pendência.</div>';const key=filter&&s[filter]?filter:'programacao',list=s[key]||[];return '<h3>'+esc34(key==='gps'?'Registro GPS':key.charAt(0).toUpperCase()+key.slice(1))+'</h3>'+(list.length?list.slice().reverse().slice(0,100).map(r=>'<article class="record-row34"><div><b>'+esc34(r.produtor_nome||r.titulo||r.atividade||r.tipo||('Registro #'+r.id))+'</b><small>'+esc34(r.status||'')+' · '+esc34(fmtDate34(r.data||r.created_at||r.data_programada))+'</small></div></article>').join(''):'<div class="empty">Nenhum registro.</div>');}
++
++const prevSyncResult34=window.agroAutoSyncResult;
++window.agroAutoSyncResult=function(json){let j={};try{j=JSON.parse(json||'{}')}catch(e){};tuneSync34();if(document.querySelector('.my-records34')&&j)myRecords34('pendentes');if(j&&j.failed>0){let b=document.getElementById('syncDiag34');if(b){b.style.display='';b.innerHTML='⚠️ <b>'+j.failed+'</b> envio(s) com erro · ver detalhes';}} if(typeof prevSyncResult34==='function')try{prevSyncResult34(json)}catch(e){};};
++
++function bindDynamic34(){ replaceGps34(); replaceText34(); dedupeActions34(); tuneSync34(); addMyRecords34(); if(document.querySelector('.estimate-guide34,.est-form230,.estimate-form')){syncEstimateRows34();bindEstimate34();} }
++const mo34=new MutationObserver(()=>{clearTimeout(window.__v34mt);window.__v34mt=setTimeout(bindDynamic34,35)});mo34.observe(document.documentElement,{subtree:true,childList:true});
++window.addEventListener('online',()=>{tuneSync34();try{A.autoSync()}catch(e){}});window.addEventListener('offline',tuneSync34);
++setTimeout(bindDynamic34,100);
++})();
+--- a/app/src/main/assets/app/style-v3.css
++++ b/app/src/main/assets/app/style-v3.css
+@@ -2278,3 +2278,285 @@
+   .chat-v33 .chat-body { padding-bottom:calc(80px + env(safe-area-inset-bottom)); }
+ }
++
++/* =============================================================
++   V3.4 – navegação, ficha ampliada, chat/anexos, registros e rota
++   ============================================================= */
++:root{--v34safeB:env(safe-area-inset-bottom,0px);--v34safeT:env(safe-area-inset-top,0px)}
++.sync-diag34{position:fixed;right:12px;bottom:calc(72px + var(--v34safeB));z-index:9995;border:0;border-radius:18px;padding:10px 14px;background:#fff4de;color:#744b00;box-shadow:0 6px 24px #0002;font-size:12px}
++.producer34,.route34,.maint34,.my-records34,.chat-list34,.chat-room34{max-width:920px;margin:0 auto;padding:14px 14px calc(90px + var(--v34safeB))}
++.producer34>header,.route-head34,.chat-list34>header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}.producer34 h2,.route34 h2{margin:0}.producer34 h3{margin:22px 0 9px}
++.record-grid34{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.record-field34{min-width:0;padding:10px 11px;border:1px solid #dfe8e2;background:#fff;border-radius:12px}.record-field34 small{display:block;color:#728078;font-size:11px;margin-bottom:4px}.record-field34 strong{display:block;overflow-wrap:anywhere;font-size:13px;color:#20372a}
++.plant-list34{display:grid;gap:12px}.plant34{border:1px solid #dce9e1;border-radius:16px;background:#fbfdfc;padding:12px}.plant-top34{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}.sample-summary34{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px;padding:10px;border-radius:12px;background:#eaf6ef}.sample-summary34 span{font-weight:700;color:#176a44}.sample-summary34 em{font-size:11px;color:#6a776f;font-style:normal;margin-left:auto}
++.files34{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.file-card34{display:flex;gap:10px;text-align:left;align-items:center;border:1px solid #dfe7e2;border-radius:12px;background:#fff;padding:10px}.file-card34 span{font-size:22px}.file-card34 b,.file-card34 small{display:block;overflow-wrap:anywhere}.file-card34 small{color:#78847d;margin-top:2px}
++.route34 canvas{width:100%;height:auto;max-height:54vh;background:linear-gradient(135deg,#edf6f0,#f8fbf9);border:1px solid #dce9e1;border-radius:18px;margin:12px 0}.gps-status34,.route-dist34{padding:12px;border-radius:12px;background:#f4f8f5;margin:8px 0;line-height:1.55}.big34{width:100%;min-height:48px;margin-top:8px}
++.estimate-guide34{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:11px;background:#e9f6ef;border:1px solid #cfe6d7;border-radius:14px;margin-bottom:10px}.estimate-guide34>div{text-align:center;background:#fff;border-radius:10px;padding:8px}.estimate-guide34 small,.estimate-guide34 b{display:block}.estimate-guide34 b{font-size:18px;color:#176a44}.estimate-guide34 p{grid-column:1/-1;margin:2px 3px 0;font-size:11px;color:#607068}.density-info34{padding:10px 12px;background:#fff9e7;border:1px solid #f0df9c;border-radius:12px;font-size:12px;margin:0 0 12px}.sample-title34{font-weight:800;color:#176a44;font-size:12px;margin:3px 0 8px;padding-bottom:5px;border-bottom:1px dashed #cbd9d0}
++.chat-list34 header h2{margin:0}.chat-list34 header p{margin:3px 0;color:#718078;font-size:12px}.conv34{width:100%;display:flex;align-items:center;gap:11px;text-align:left;background:#fff;border:1px solid #dfe7e2;border-radius:14px;padding:12px;margin-bottom:8px}.conv34>span{font-size:24px}.conv34 b,.conv34 small{display:block}.conv34 small{margin-top:3px;color:#718078;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:68vw}
++.chat-room34{height:calc(var(--app-vh,100dvh) - var(--v34safeT));padding:0;display:grid;grid-template-rows:auto 1fr auto auto;overflow:hidden;background:#f4f7f5}.chat-room34>header{display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid #dce4df;padding:calc(9px + var(--v34safeT)) 12px 9px}.chat-room34>header .back34{border:0;background:#edf4ef;width:38px;height:38px;border-radius:50%;font-size:20px}.chat-room34>header b,.chat-room34>header small{display:block}.chat-room34>header small{font-size:10px;color:#65806f;margin-top:1px}
++.chat-msgs34{min-height:0;overflow-y:auto;padding:12px;overscroll-behavior:contain}.chat-bubble-row34{display:flex;margin:4px 0}.chat-bubble-row34.mine34{justify-content:flex-end}.chat-bubble34{max-width:min(82%,520px);background:#fff;border:1px solid #dce6df;border-radius:16px 16px 16px 4px;padding:8px 10px;box-shadow:0 1px 4px #0000000d}.mine34 .chat-bubble34{background:#dff2e6;border-color:#cbe6d5;border-radius:16px 16px 4px 16px}.chat-bubble34>small{font-size:10px;font-weight:700;color:#176a44}.chat-text34{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.38;margin:4px 0 6px}.chat-bubble34 footer{font-size:9px;color:#768078;text-align:right;margin-top:5px}.chat-bubble34 footer em{display:block;color:#b34834;font-style:normal;margin-top:2px}
++.chat-img34,.chat-file34{width:100%;border:1px solid #cfdcd4;background:#fff;border-radius:11px;margin:5px 0;padding:8px;display:flex;gap:8px;align-items:center;text-align:left}.chat-img34 span,.chat-file34>span{font-size:22px}.chat-img34 b,.chat-img34 small,.chat-file34 b,.chat-file34 small{display:block}.chat-img34 small,.chat-file34 small{font-size:10px;color:#718078;margin-top:2px}.chat-audio34{margin:6px 0}.chat-audio34>button{border:0;border-radius:18px;padding:8px 12px;background:#176a44;color:#fff}.chat-audio34 audio{width:260px;max-width:100%;height:36px;margin-top:4px}.chat-preview34{display:flex;gap:5px;overflow-x:auto;padding:0 8px;background:#fff}.chat-preview34 span{white-space:nowrap;font-size:10px;background:#edf4ef;border-radius:12px;padding:5px 7px}.chat-preview34 button{border:0;background:transparent;color:#a33}
++.chat-compose34{display:grid;grid-template-columns:auto auto auto 1fr auto;align-items:end;gap:5px;padding:8px 8px calc(8px + var(--v34safeB));background:#fff;border-top:1px solid #dce4df}.chat-compose34>button{width:38px;height:38px;border:0;background:#edf3ef;border-radius:50%;font-size:17px}.chat-compose34>button.recording34{background:#ffe4df;animation:pulse34 1s infinite}.chat-compose34 textarea{resize:none;max-height:110px;min-height:38px;border:1px solid #d7e0da;border-radius:18px;padding:9px 12px;outline:none;font:inherit}.chat-compose34 .send34{background:#176a44;color:#fff}.img-viewer34{position:fixed;inset:0;background:#000d;z-index:10050;display:grid;place-items:center;padding:20px}.img-viewer34 img{max-width:100%;max-height:88vh;object-fit:contain;border-radius:8px}.img-viewer34 button{position:absolute;right:15px;top:calc(15px + var(--v34safeT));border:0;width:42px;height:42px;border-radius:50%;font-size:24px}
++@keyframes pulse34{50%{transform:scale(.9);opacity:.7}}
++.maint34 label{display:block;margin:10px 0;font-size:12px;font-weight:650}.maint34 input,.maint34 select,.maint34 textarea{width:100%;box-sizing:border-box;margin-top:5px;padding:11px;border:1px solid #d6e0da;border-radius:10px;background:#fff;font:inherit}.maint34 textarea{min-height:90px}.vehicle-type34{display:inline-block;padding:6px 10px;border-radius:15px;background:#e6f3eb;color:#176a44;font-weight:800;margin:5px 0}.check34{display:flex!important;align-items:flex-start;gap:8px;background:#fff;border:1px solid #e0e7e3;border-radius:10px;padding:9px!important;margin:6px 0!important}.check34 input{width:auto!important;margin:2px 0!important}.photo-actions34{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.photo-actions34 button{min-height:42px;border:1px solid #cfdbd4;border-radius:10px;background:#fff}.warn{padding:10px;background:#fff1e8;color:#8a4427;border:1px solid #f1cfbd;border-radius:11px;margin:8px 0}
++.my-records34 header h2{margin:0}.my-records34 header p{font-size:12px;color:#708078}.record-kpis34{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0}.record-kpis34 button{border:1px solid #dce7e0;background:#fff;border-radius:12px;padding:9px}.record-kpis34 b,.record-kpis34 small{display:block}.record-kpis34 b{font-size:20px;color:#176a44}.sync-errors34{background:#fff3ee;border:1px solid #f1d4c7;border-radius:14px;padding:10px;margin:12px 0}.sync-errors34 article,.record-row34{display:flex;gap:8px;justify-content:space-between;align-items:center;border-bottom:1px solid #edf0ee;padding:9px 2px}.sync-errors34 article:last-child,.record-row34:last-child{border-bottom:0}.sync-errors34 b,.sync-errors34 small,.record-row34 b,.record-row34 small{display:block}.sync-errors34 small,.record-row34 small{font-size:10px;color:#768078;margin-top:3px}.sync-errors34 button{border:0;background:#a94e31;color:#fff;border-radius:8px;padding:6px 8px;font-size:10px}.ok34{padding:16px;text-align:center;background:#e9f6ef;color:#176a44;border-radius:12px}
++@media(max-width:430px){.producer34,.route34,.maint34,.my-records34,.chat-list34{padding-left:9px;padding-right:9px}.record-grid34{grid-template-columns:1fr}.files34{grid-template-columns:1fr}.producer34>header,.route-head34{align-items:flex-start;flex-direction:column}.producer34>header .btn,.route-head34 .btn{width:100%}.estimate-guide34{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:7px}.estimate-guide34 b{font-size:15px}.record-kpis34{grid-template-columns:repeat(2,1fr)}.chat-compose34{grid-template-columns:auto auto auto minmax(0,1fr) auto;gap:3px;padding-left:5px;padding-right:5px}.chat-compose34>button{width:34px;height:34px;font-size:15px}.chat-compose34 textarea{min-width:0;padding-left:9px;padding-right:9px}.chat-bubble34{max-width:88%}.sample-summary34 em{width:100%;margin-left:0}}
++@media(max-width:350px){.chat-compose34{grid-template-columns:auto auto 1fr auto}.chat-compose34>button:nth-child(2){display:none}.record-kpis34{grid-template-columns:1fr 1fr}.estimate-guide34{grid-template-columns:1fr}.estimate-guide34 p{grid-column:auto}.chat-bubble34{max-width:92%}}
++@media(orientation:landscape) and (max-height:560px){.chat-room34{height:var(--app-vh,100dvh)}.chat-room34>header{padding-top:5px;padding-bottom:5px}.chat-msgs34{padding:6px 12px}.chat-compose34{padding-top:4px;padding-bottom:calc(4px + var(--v34safeB))}.producer34,.route34,.maint34,.my-records34{max-width:1100px}.record-grid34{grid-template-columns:repeat(3,minmax(0,1fr))}.route34 canvas{max-height:42vh}}
++@media(min-width:768px){.producer34,.route34,.maint34,.my-records34,.chat-list34{padding-left:22px;padding-right:22px}.record-grid34{grid-template-columns:repeat(3,minmax(0,1fr))}.record-kpis34{grid-template-columns:repeat(6,1fr)}.chat-bubble34{max-width:65%}.files34{grid-template-columns:repeat(3,1fr)}}
+--- a/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
++++ b/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
+@@ -16,7 +16,7 @@
+ public final class ApiClient {
+     public static final String API = "https://salmon-woodcock-375027.hostingersite.com/mobile/api.php";
+-    private static final String UA = "AgroDominium-Android/3.3.0";
++    private static final String UA = "AgroDominium-Android/3.4.0";
+ 
+@@ -151,6 +151,51 @@
+     public JSONObject realtime(String token, long lastMessageId, long lastChangeId) throws Exception {
+         return request("realtime", token, "GET", null, "last_message_id="+lastMessageId+"&last_change_id="+lastChangeId);
+     }
++
++    public JSONObject requestParams(String action, String token, java.util.Map<String,String> params) throws Exception {
++        StringBuilder q=new StringBuilder();
++        if(params!=null) for(java.util.Map.Entry<String,String> e:params.entrySet()){
++            if(q.length()>0)q.append('&');
++            q.append(URLEncoder.encode(e.getKey(),"UTF-8")).append('=').append(URLEncoder.encode(e.getValue()==null?"":e.getValue(),"UTF-8"));
++        }
++        return request(action, token, "GET", null, q.toString());
++    }
++
++    public JSONObject chatFile(String token, long id) throws Exception {
++        java.util.Map<String,String> p=new java.util.HashMap<>();p.put("id",String.valueOf(id));
++        return requestParams("chat_file",token,p);
++    }
++
++    public JSONObject producerMedia(String token, long producerId) throws Exception {
++        java.util.Map<String,String> p=new java.util.HashMap<>();p.put("producer_id",String.valueOf(producerId));
++        return requestParams("producer_media",token,p);
++    }
++
++    public JSONObject producerFile(String token, long id) throws Exception {
++        java.util.Map<String,String> p=new java.util.HashMap<>();p.put("id",String.valueOf(id));
++        return requestParams("producer_file",token,p);
++    }
+ }
+--- a/app/src/main/java/com/agrodominium/mobile/v3/AppDb.java
++++ b/app/src/main/java/com/agrodominium/mobile/v3/AppDb.java
+@@ -131,6 +131,9 @@
+     public synchronized JSONArray pendingRows(){
+         SQLiteDatabase d=getWritableDatabase();
++        d.execSQL("UPDATE sync_queue SET status='FAILED',last_error=CASE WHEN COALESCE(last_error,'')='' THEN 'Envio interrompido; tentando novamente.' ELSE last_error END WHERE status='SENDING' AND updated_at < datetime('now','-120 seconds')");
+         Cursor c=d.rawQuery("SELECT id,client_uuid,type,group_id,payload_json,photos_json,status,attempts,last_error,response_json,created_at,updated_at FROM sync_queue WHERE status IN('PENDING','FAILED','SENDING') ORDER BY id",null);
+         JSONArray a=new JSONArray();
+         while(c.moveToNext()){
+--- a/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
++++ b/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+@@ -75,7 +75,12 @@
+-        web.loadUrl("file:///android_asset/app/index.html");
++        boolean restored=false;
++        if(savedInstanceState!=null){try{restored=web.restoreState(savedInstanceState)!=null;}catch(Exception ignored){}}
++        if(!restored) web.loadUrl("file:///android_asset/app/index.html");
+     }
++
++    @Override protected void onSaveInstanceState(Bundle outState){super.onSaveInstanceState(outState);try{web.saveState(outState);}catch(Exception ignored){} if(cameraPath!=null)outState.putString("camera_path_v34",cameraPath);}
+@@ -93,7 +98,7 @@
+-                j.put("version","3.3.0");
++                j.put("version","3.4.0");
+@@ -176,19 +181,28 @@
+         public long queueOperation(String type,String payloadJson,String photosJson){
+             long id=db.enqueue(UUID.randomUUID().toString(),type,groupId(),payloadJson,photosJson);
+-            scheduleOneSync();
++            if(isOnline()) io.execute(()->{
++                try{JSONObject r=SyncCore.syncAll(MainActivity.this,db,api,token(),groupId());jsCall("window.agroAutoSyncResult&&window.agroAutoSyncResult("+JSONObject.quote(r.toString())+")");}
++                catch(Exception e){jsCall("window.agroAutoSyncResult&&window.agroAutoSyncResult("+JSONObject.quote(new JSONObject().put("ok",false).put("error",e.getMessage()==null?e.toString():e.getMessage()).toString())+")");}
++            });
+             return id;
+         }
++
++        @JavascriptInterface public String saveAttachment(String dataUrl,String name,String mime){return saveDataUrl(dataUrl, safeName(name,"arquivo"));}
+@@ -202,6 +216,43 @@
++        @JavascriptInterface public void producerMedia(long producerId){io.execute(()->safeApiResult("agroProducerMediaResult",()->api.producerMedia(token(),producerId)));}
++        @JavascriptInterface public void openProducerFile(long id){io.execute(()->safeApiOpen(()->api.producerFile(token(),id)));}
++        @JavascriptInterface public void chatMediaData(long id){io.execute(()->safeApiResult("agroChatMediaResult",()->api.chatFile(token(),id)));}
++        @JavascriptInterface public void openChatFile(long id){io.execute(()->safeApiOpen(()->api.chatFile(token(),id)));}
++        @JavascriptInterface public String localMediaData(String path,String mime){try{return fileBase64(path);}catch(Exception e){return "";}}
++        @JavascriptInterface public void openLocalFile(String path,String mime,String name){openFilePath(path,mime,name);}
++        @JavascriptInterface public void openNavigation(double lat,double lng){openMaps(lat,lng);}
+@@ -298,6 +349,8 @@
+             if(tag.equals("chat34")){
+                 jsCall("window.agroPhoto&&window.agroPhoto('chat34',"+JSONObject.quote(path)+")");
++                return;
+             }
+@@ -466,6 +519,97 @@
++    private void safeApiResult(String callback, ApiTask task){try{JSONObject j=task.run();jsCall("window."+callback+"&&window."+callback+"("+JSONObject.quote(j.toString())+")");}catch(Exception e){try{JSONObject j=new JSONObject().put("ok",false).put("error",e.getMessage()==null?e.toString():e.getMessage());jsCall("window."+callback+"&&window."+callback+"("+JSONObject.quote(j.toString())+")");}catch(Exception ignored){}}}
++    private void safeApiOpen(ApiTask task){try{JSONObject j=task.run();if(!j.optBoolean("ok",false))throw new Exception(j.optString("error","Arquivo indisponível"));String data=j.optString("data","");String mime=j.optString("mime","application/octet-stream");String name=safeName(j.optString("name","arquivo"),"arquivo");File f=new File(getCacheDir(),name);try(FileOutputStream o=new FileOutputStream(f)){o.write(Base64.decode(data,Base64.DEFAULT));}openFilePath(f.getAbsolutePath(),mime,name);}catch(Exception e){toast("Não foi possível abrir o arquivo: "+e.getMessage());}}
++    private interface ApiTask{JSONObject run() throws Exception;}
++    private String fileBase64(String path)throws Exception{File f=new File(path);byte[] b=new byte[(int)f.length()];try(FileInputStream in=new FileInputStream(f)){int off=0,n;while(off<b.length&&(n=in.read(b,off,b.length-off))>0)off+=n;}return Base64.encodeToString(b,Base64.NO_WRAP);}
++    private void openFilePath(String path,String mime,String name){runOnUiThread(()->{try{File f=new File(path);Uri u=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".fileprovider",f);Intent i=new Intent(Intent.ACTION_VIEW);i.setDataAndType(u,mime==null||mime.isEmpty()?"*/*":mime);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(Intent.createChooser(i,"Abrir "+safeName(name,"arquivo")));}catch(Exception e){toast("Nenhum aplicativo compatível com este arquivo.");}});}
++    private void openMaps(double lat,double lng){runOnUiThread(()->{try{Uri g=Uri.parse("google.navigation:q="+lat+","+lng+"&mode=d");Intent i=new Intent(Intent.ACTION_VIEW,g);i.setPackage("com.google.android.apps.maps");try{startActivity(i);}catch(Exception noGoogle){Intent any=new Intent(Intent.ACTION_VIEW,Uri.parse("geo:"+lat+","+lng+"?q="+lat+","+lng));startActivity(any);}}catch(Exception e){toast("Não foi possível abrir o aplicativo de mapas.");}});}
++    private File optimizeImage(String path){try{android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeFile(path,o);int s=1;while(o.outWidth/s>2200||o.outHeight/s>2200)s*=2;o.inJustDecodeBounds=false;o.inSampleSize=s;android.graphics.Bitmap b=android.graphics.BitmapFactory.decodeFile(path,o);if(b==null)return new File(path);File out=new File(getFilesDir(),"camera/"+System.currentTimeMillis()+"_upload.jpg");out.getParentFile().mkdirs();try(FileOutputStream fos=new FileOutputStream(out)){b.compress(android.graphics.Bitmap.CompressFormat.JPEG,82,fos);}b.recycle();return out;}catch(Exception e){return new File(path);}}
+--- a/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
++++ b/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java
+@@ -19,7 +19,7 @@
+-    public static JSONObject syncAll(Context ctx, AppDb db, ApiClient api, String token, long gid) throws Exception {
++    public static synchronized JSONObject syncAll(Context ctx, AppDb db, ApiClient api, String token, long gid) throws Exception {
+@@ -72,8 +72,13 @@
+-                        p.put("data_base64", encodeFile(path));
+-                        p.put("mime","image/jpeg");
++                        p.put("data_base64", encodeFile(path));
++                        String mime=p.optString("mime","");
++                        if(mime.length()==0) mime=guessMime(path);
++                        p.put("mime",mime);
++                        if(!p.has("tipo")){ if(mime.startsWith("image/"))p.put("tipo","IMAGEM"); else if(mime.startsWith("audio/"))p.put("tipo","AUDIO"); else p.put("tipo","ARQUIVO"); }
+@@ -115,4 +120,13 @@
++    private static String guessMime(String path){String p=path==null?"":path.toLowerCase();if(p.endsWith(".png"))return "image/png";if(p.endsWith(".webp"))return "image/webp";if(p.endsWith(".jpg")||p.endsWith(".jpeg"))return "image/jpeg";if(p.endsWith(".m4a")||p.endsWith(".mp4"))return "audio/mp4";if(p.endsWith(".mp3"))return "audio/mpeg";if(p.endsWith(".wav"))return "audio/wav";if(p.endsWith(".pdf"))return "application/pdf";return "application/octet-stream";}
+ }
