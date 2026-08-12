@@ -5,14 +5,17 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://salmon-woodcock-375027.hostingersite.com/";
@@ -35,31 +38,39 @@ public class MainActivity extends Activity {
         s.setGeolocationEnabled(true);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " AgroDominiumAndroid/3.0");
+        s.setUserAgentString(s.getUserAgentString() + " AgroDominiumAndroid/3.0.1 Universal");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (url == null) return false;
-                Uri uri = Uri.parse(url);
-                String scheme = uri.getScheme();
-                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                    view.loadUrl(url);
-                    return true;
+                return handleUrl(view, url);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && request != null) {
+                    return handleUrl(view, request.getUrl() == null ? null : request.getUrl().toString());
                 }
-                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) {}
-                return true;
+                return false;
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && request != null && request.isForMainFrame()) {
+                    Toast.makeText(MainActivity.this, "Sem conexão. Os dados já carregados continuam disponíveis no cache do aplicativo.", Toast.LENGTH_LONG).show();
+                }
             }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
                     callback.invoke(origin, true, false);
                 } else {
-                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_PERMISSIONS);
+                    requestRuntimePermissions();
                     callback.invoke(origin, true, false);
                 }
             }
@@ -75,17 +86,49 @@ public class MainActivity extends Activity {
                     return true;
                 } catch (Exception e) {
                     fileCallback = null;
+                    Toast.makeText(MainActivity.this, "Não foi possível abrir câmera/galeria neste aparelho.", Toast.LENGTH_SHORT).show();
                     return false;
                 }
             }
         });
 
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.CAMERA}, REQ_PERMISSIONS);
-        }
+        requestRuntimePermissions();
 
-        if (savedInstanceState == null) webView.loadUrl(APP_URL); else webView.restoreState(savedInstanceState);
+        if (savedInstanceState == null) {
+            webView.loadUrl(APP_URL);
+        } else {
+            webView.restoreState(savedInstanceState);
+        }
+    }
+
+    private boolean handleUrl(WebView view, String url) {
+        if (url == null) return false;
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme();
+        if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
+            view.loadUrl(url);
+            return true;
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri));
+        } catch (Exception ignored) {
+        }
+        return true;
+    }
+
+    private boolean hasPermission(String permission) {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestRuntimePermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) || !hasPermission(Manifest.permission.CAMERA)) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.CAMERA
+            }, REQ_PERMISSIONS);
+        }
     }
 
     @Override
@@ -115,6 +158,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack(); else super.onBackPressed();
+        if (webView != null && webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
     }
 }
