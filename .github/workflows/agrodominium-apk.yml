@@ -7,6 +7,7 @@ on:
       - 'android-build/**'
       - 'v3src_payload/**'
       - 'v33_overlay/**'
+      - 'v34_overlay/**'
       - '.github/workflows/agrodominium-apk.yml'
   workflow_dispatch:
 
@@ -68,7 +69,26 @@ jobs:
           grep -q "action=realtime" android-build/app/src/main/java/com/agrodominium/mobile/v3/ApiClient.java
           grep -q "V3.3 responsividade Android" android-build/app/src/main/assets/app/style-v3.css
           grep -q "@mipmap/ic_launcher" android-build/app/src/main/AndroidManifest.xml
-          ls -lh android-build/app/src/main/assets/app/
+
+      - name: Export V3.3 patched source
+        shell: bash
+        run: |
+          tar -czf AgroDominium_V3_3_Source_Patched.tgz -C android-build app
+      - name: Upload V3.3 source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgroDominium_V3_3_Source_Patched
+          path: AgroDominium_V3_3_Source_Patched.tgz
+          retention-days: 7
+
+      - name: Apply V3.4 overlay if present
+        shell: bash
+        run: |
+          if [ -f v34_overlay/v34.patch ]; then
+            cd android-build
+            patch -p1 < ../v34_overlay/v34.patch
+            cd ..
+          fi
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -98,14 +118,14 @@ jobs:
           unzip -l "$APK" | grep -E 'classes([0-9]+)?[.]dex'
           test "$SIZE" -gt 500000
           test "$ENTRIES" -gt 30
-          cp "$APK" AgroDominium_Android_V3_3_Realtime_Offline.apk
-          sha256sum AgroDominium_Android_V3_3_Realtime_Offline.apk > AgroDominium_Android_V3_3_Realtime_Offline.sha256
+          cp "$APK" AgroDominium_Android_V3_4.apk
+          sha256sum AgroDominium_Android_V3_4.apk > AgroDominium_Android_V3_4.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_3_Realtime_Offline
+          name: AgroDominium_Android_V3_4
           path: |
-            AgroDominium_Android_V3_3_Realtime_Offline.apk
-            AgroDominium_Android_V3_3_Realtime_Offline.sha256
+            AgroDominium_Android_V3_4.apk
+            AgroDominium_Android_V3_4.sha256
           retention-days: 30
