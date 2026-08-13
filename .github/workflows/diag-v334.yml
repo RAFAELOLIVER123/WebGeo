@@ -1,0 +1,15 @@
+name: Diagnose V334 payload
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths: ['.github/workflows/diag-v334.yml']
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          wc -c v334_integrated/part00.b64 v334_integrated/part01.b64 v334_integrated/part02.b64
+          sha256sum v334_integrated/part00.b64 v334_integrated/part01.b64 v334_integrated/part02.b64
+          cat v334_integrated/part00.b64 v334_integrated/part01.b64 v334_integrated/part02.b64 | sha256sum
