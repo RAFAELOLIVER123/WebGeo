@@ -1,0 +1,19 @@
+name: Diagnose V335 exact files
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths: ['.github/workflows/diag-v335-files.yml']
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sha256sum v335/part03.b64 v335/part03.correct.b64 v335/part03.exact.b64 v335/part03_doubleb64.tmp || true
+          wc -c v335/part03.b64 v335/part03.correct.b64 v335/part03.exact.b64 v335/part03_doubleb64.tmp || true
+          base64 -d v335/part03_doubleb64.tmp >/tmp/from_double 2>/dev/null || true
+          echo double_decoded:
+          sha256sum /tmp/from_double || true
+          wc -c /tmp/from_double || true
