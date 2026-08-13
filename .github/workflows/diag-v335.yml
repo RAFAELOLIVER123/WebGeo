@@ -1,0 +1,17 @@
+name: Diagnose V335 payload
+on:
+  push:
+    branches: [agrodominium-apk-build]
+    paths: ['.github/workflows/diag-v335.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          wc -c v335/part00.b64 v335/part01.b64 v335/part02.b64 v335/part03.b64
+          sha256sum v335/part00.b64 v335/part01.b64 v335/part02.b64 v335/part03.b64
+          cat v335/part00.b64 v335/part01.b64 v335/part02.b64 v335/part03.b64 | sha256sum
