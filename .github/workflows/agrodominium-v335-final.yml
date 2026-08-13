@@ -1,0 +1,111 @@
+name: AgroDominium V3.3.5 Estavel Final
+
+on:
+  push:
+    branches: [agrodominium-v335-build]
+    paths:
+      - 'v335_update/**'
+      - '.github/workflows/agrodominium-v335-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Restaurar V3.3 estavel
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v3src_payload/part00.b64 v3src_payload/part01.b64 v3src_payload/rest00.b64 v3src_payload/rest01.b64 v3src_payload/rest02.b64 v3src_payload/rest03.b64 v3src_payload/rest04.b64 v3src_payload/rest05.b64 | base64 -d > /tmp/v3.tgz
+          echo '70ee2dcc439b7aac2a66e022d22feae4d3a327bf4c0c0b80e30f6877bf3379c8  /tmp/v3.tgz' | sha256sum -c -
+          rm -rf android-build/app && tar -xzf /tmp/v3.tgz -C android-build
+          cat v33_overlay/part00.b64 v33_overlay/part01a.b64 v33_overlay/part01b.b64 v33_overlay/part02.b64 v33_overlay/part03a.b64 v33_overlay/part03b.b64 | base64 -d > /tmp/v33.tgz
+          echo '9064fa395ed0ed5caadff60d94f390e9044bbb0a1d1c32a786c220ad9958d2ea  /tmp/v33.tgz' | sha256sum -c -
+          rm -rf /tmp/v33 && mkdir /tmp/v33 && tar -xzf /tmp/v33.tgz -C /tmp/v33
+          (cd android-build && patch -p1 < /tmp/v33/v33.patch)
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p android-build/app/src/main/res/mipmap-$d; cp /tmp/v33/icon.png android-build/app/src/main/res/mipmap-$d/ic_launcher.png; cp /tmp/v33/icon.png android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png; done
+      - name: Aplicar V3.3.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v332_integrated/part00.b64 v332_integrated/part01.b64 > /tmp/v332.b64
+          echo '18fb1eac3af29f3522dc3e32c426c6e93df3fddc68da66f94893b701a0553a2c  /tmp/v332.b64' | sha256sum -c -
+          base64 -d /tmp/v332.b64 > /tmp/v332.gz
+          echo 'a91d2757999d5806d7a598face33385312166961de4f3cccc80439c28081fe68  /tmp/v332.gz' | sha256sum -c -
+          gunzip -c /tmp/v332.gz > /tmp/v332.patch
+          echo '60538320fdc8edd2910067108e3a63e5178cceacfe80047bad1c8571519f0a57  /tmp/v332.patch' | sha256sum -c -
+          (cd android-build && patch -p2 < /tmp/v332.patch)
+      - name: Aplicar V3.3.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v334_integrated/part00.b64 v334_fixed/p01_00.b64 v334_fixed/p01_01.b64 v334_fixed/p01_02.b64 v334_fixed/p01_03.b64 v334_fixed/p01_04.b64 v334_fixed/p01_05.b64 v334_fixed/p01_06.b64 v334_integrated/part02.b64 > /tmp/v334.b64
+          echo 'a16fc54f92a6b493723083ba98f2d03f9a9dc7b1a1c9daf86fb43187a374ba70  /tmp/v334.b64' | sha256sum -c -
+          base64 -d /tmp/v334.b64 > /tmp/v334.gz
+          echo '4a728a177c82f41a4577773cc149a02f6d809da66bd9c6628e7795a946e1833a  /tmp/v334.gz' | sha256sum -c -
+          gunzip -c /tmp/v334.gz > /tmp/v334.patch
+          echo 'b53959db4057be58ebd76c59ad3673a7bdd83eaaf2e0743a1a67ce1c04bf52aa  /tmp/v334.patch' | sha256sum -c -
+          (cd android-build && patch -p4 < /tmp/v334.patch)
+          echo '4c46fc6380a96ecccf1110025263257f0d5884e8151b926326a2a9cda9e671a3  android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java' | sha256sum -c -
+      - name: Aplicar V3.3.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat v335_update/patch_0.b64 v335_update/patch_1.b64 v335_update/patch_2.b64 > /tmp/v335.b64
+          echo 'a01c0239fca4e04c424ee1cd7512b86b618a12928a28aa932172d5fdc2bbb07c  /tmp/v335.b64' | sha256sum -c -
+          base64 -d /tmp/v335.b64 > /tmp/v335.gz
+          gunzip -c /tmp/v335.gz > /tmp/v335.patch
+          echo 'dd301a6523570951e4b2f67fe61ae307eebaed659970ba9ea1e6f5b6e816a7ea  /tmp/v335.patch' | sha256sum -c -
+          (cd android-build && patch -p1 < /tmp/v335.patch)
+          grep -q "applicationId 'com.agrodominium.mobile.v335'" android-build/app/build.gradle
+          grep -q "versionName '3.3.5'" android-build/app/build.gradle
+          grep -q 'zoomImage335' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'chatMsgs335' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'forceSync335' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'openGallery' android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          grep -q 'getCachedChatFile' android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
+          echo '4c46fc6380a96ecccf1110025263257f0d5884e8151b926326a2a9cda9e671a3  android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java' | sha256sum -c -
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compilar APK
+        working-directory: android-build
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Validar APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=android-build/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/badging.txt
+          grep -q "package: name='com.agrodominium.mobile.v335'" /tmp/badging.txt
+          grep -q "sdkVersion:'21'" /tmp/badging.txt
+          grep -q "launchable-activity: name='com.agrodominium.mobile.v3.MainActivity'" /tmp/badging.txt
+          test $(stat -c%s "$APK") -gt 1000000
+          test $(unzip -Z1 "$APK" | wc -l) -gt 50
+          unzip -p "$APK" assets/app/app-v3.js | grep -q 'chatMsgs335'
+          unzip -p "$APK" assets/app/app-v3.js | grep -q 'zoomImage335'
+          cp "$APK" AgroDominium_Android_V3_3_5_Estavel.apk
+          sha256sum AgroDominium_Android_V3_3_5_Estavel.apk > AgroDominium_Android_V3_3_5_Estavel.sha256
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgroDominium_Android_V3_3_5_Estavel
+          path: |
+            AgroDominium_Android_V3_3_5_Estavel.apk
+            AgroDominium_Android_V3_3_5_Estavel.sha256
+          retention-days: 30
