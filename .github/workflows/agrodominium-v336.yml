@@ -1,4 +1,4 @@
-name: AgroDominium V3.3.6 Mapa Real
+name: AgroDominium V3.3.6 Realtime Chat Mapa
 
 on:
   push:
@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Restaurar V3.3 estavel
         shell: bash
         run: |
@@ -29,7 +28,6 @@ jobs:
           rm -rf /tmp/v33overlay && mkdir -p /tmp/v33overlay && tar -xzf /tmp/v33_overlay.tgz -C /tmp/v33overlay
           (cd android-build && patch -p1 < /tmp/v33overlay/v33.patch)
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p "android-build/app/src/main/res/mipmap-$d"; cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher.png"; cp /tmp/v33overlay/icon.png "android-build/app/src/main/res/mipmap-$d/ic_launcher_round.png"; done
-
       - name: Aplicar V3.3.2
         shell: bash
         run: |
@@ -41,7 +39,6 @@ jobs:
           gunzip -c /tmp/v332.gz > /tmp/v332.patch
           echo "60538320fdc8edd2910067108e3a63e5178cceacfe80047bad1c8571519f0a57  /tmp/v332.patch" | sha256sum -c -
           (cd android-build && patch -p2 < /tmp/v332.patch)
-
       - name: Aplicar V3.3.4
         shell: bash
         run: |
@@ -53,7 +50,6 @@ jobs:
           gunzip -c /tmp/v334.gz > /tmp/v334.patch
           echo "b53959db4057be58ebd76c59ad3673a7bdd83eaaf2e0743a1a67ce1c04bf52aa  /tmp/v334.patch" | sha256sum -c -
           (cd android-build && patch -p4 < /tmp/v334.patch)
-
       - name: Aplicar V3.3.5
         shell: bash
         run: |
@@ -63,46 +59,30 @@ jobs:
           base64 -d /tmp/v335.b64 > /tmp/v335.patch
           echo "82204211a056da81c5f74a47ca2b6bd8682f122d4702de3e6df507d73e0d0f14  /tmp/v335.patch" | sha256sum -c -
           (cd android-build && patch -p1 < /tmp/v335.patch)
-
-      - name: Aplicar V3.3.6 mapa
+      - name: Aplicar V3.3.6 definitivo
         shell: bash
         run: |
           set -euo pipefail
-          cp v336/map-v336.js android-build/app/src/main/assets/app/map-v336.js
-          cat v336/map-v336.css >> android-build/app/src/main/assets/app/style-v3.css
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          idx=Path('android-build/app/src/main/assets/app/index.html')
-          s=idx.read_text()
-          if 'map-v336.js' not in s:
-              s=s.replace('<script src="app-v3.js"></script>','<script src="app-v3.js"></script>\n<script src="map-v336.js"></script>')
-          idx.write_text(s)
-          p=Path('android-build/app/build.gradle')
-          s=p.read_text()
-          s=re.sub(r"applicationId\s+'[^']+'", "applicationId 'com.agrodominium.mobile.v336'", s)
-          s=re.sub(r"versionCode\s+\d+", "versionCode 3360", s)
-          s=re.sub(r"versionName\s+'[^']+'", "versionName '3.3.6'", s)
-          p.write_text(s)
-          PY
-          node --check android-build/app/src/main/assets/app/map-v336.js
+          cat v336/bin00 v336/bin01 v336/bin02 v336/bin03 > /tmp/v336.patch.gz
+          echo "9e0ce00a9668accfaa10e3abe488599f493d57d6bcfe1e19438a95beecf8ddff  /tmp/v336.patch.gz" | sha256sum -c -
+          gunzip -c /tmp/v336.patch.gz > /tmp/v336.patch
+          echo "9413988675f6e19ad02cbd0572803e76e1c5bb61a67cdb5876ff13152aeb4748  /tmp/v336.patch" | sha256sum -c -
+          (cd android-build && patch -p4 < /tmp/v336.patch)
           grep -q "applicationId 'com.agrodominium.mobile.v336'" android-build/app/build.gradle
           grep -q "versionName '3.3.6'" android-build/app/build.gradle
-          grep -q 'map-v336.js' android-build/app/src/main/assets/app/index.html
-          grep -q 'Web Mercator' v336/map-v336.js || true
-          grep -q 'tile.openstreetmap.org' android-build/app/src/main/assets/app/map-v336.js
-          grep -q 'Minha posição' android-build/app/src/main/assets/app/map-v336.js
+          grep -q 'chatMsgs336' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'deleteMessage336' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'mapPointRows336' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'focusMyPosition336' android-build/app/src/main/assets/app/app-v3.js
+          grep -q 'deleteChatMessage' android-build/app/src/main/java/com/agrodominium/mobile/v3/MainActivity.java
           echo "4c46fc6380a96ecccf1110025263257f0d5884e8151b926326a2a9cda9e671a3  android-build/app/src/main/java/com/agrodominium/mobile/v3/SyncCore.java" | sha256sum -c -
-
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.11.1'}
-
       - name: Compilar APK
         working-directory: android-build
         run: gradle :app:assembleDebug --stacktrace
-
       - name: Validar APK
         shell: bash
         run: |
@@ -117,14 +97,14 @@ jobs:
           grep -q "launchable-activity: name='com.agrodominium.mobile.v3.MainActivity'" /tmp/badging.txt
           test $(stat -c%s "$APK") -gt 1000000
           test $(unzip -Z1 "$APK" | wc -l) -gt 50
-          unzip -p "$APK" assets/app/map-v336.js | grep -q 'tile.openstreetmap.org'
-          unzip -p "$APK" assets/app/map-v336.js | grep -q 'M336me'
+          unzip -p "$APK" assets/app/app-v3.js | grep -q 'chatMsgs336'
+          unzip -p "$APK" assets/app/app-v3.js | grep -q 'deleteMessage336'
+          unzip -p "$APK" assets/app/app-v3.js | grep -q 'mapPointRows336'
           cp "$APK" AgroDominium_Android_V3_3_6.apk
           sha256sum AgroDominium_Android_V3_3_6.apk > AgroDominium_Android_V3_3_6.sha256
-
       - uses: actions/upload-artifact@v4
         with:
-          name: AgroDominium_Android_V3_3_6
+          name: AgroDominium_Android_V3_3_6_Final
           path: |
             AgroDominium_Android_V3_3_6.apk
             AgroDominium_Android_V3_3_6.sha256
